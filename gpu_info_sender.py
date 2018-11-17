@@ -9,18 +9,6 @@ import subprocess
 from settings import *
 from path_util import *
 
-GPU_QUERY = [#  (query, alias)
-              ('index', "device_num"),       # this must come first
-               ('uuid', "uuid"),             #
-               ('name', "gpu_name"),         #
-    ('temperature.gpu', "temperature"),      # in celsius
-       ('memory.total', "total_memory"),     # in MiB
-        ('memory.free', "available_memory"), # in MiB
-        ('memory.used', "used_memory"),      # in MiB
-          ('timestamp', "timestamp"),        #
-    ('utilization.gpu', "gpu_volatile")      # in percentage
-]
-
 def get_gpu_info(nvidia_smi='nvidia-smi'):
     """
         example output of this function
