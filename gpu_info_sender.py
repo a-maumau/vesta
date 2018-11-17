@@ -6,8 +6,8 @@ import requests
 import argparse
 import subprocess
 
-#from settings import *
-#from path_util import *
+from settings import *
+from path_util import *
 
 GPU_QUERY = [#  (query, alias)
               ('index', "device_num"),       # this must come first
