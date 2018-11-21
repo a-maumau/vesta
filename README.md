@@ -36,8 +36,8 @@ Json response is like
     "host_name":[
         # host_name log are in array
         {
-        	# server recorded timestamp
-			"timestamp":20181208153207, # YYYYMMDDhhmmss
+            # server recorded timestamp
+            "timestamp":20181208153207, # YYYYMMDDhhmmss
             # each GPU will be denote by "gpu:<device_num>"
             "gpu:0":{
                 # statues will be associative array (dict)
