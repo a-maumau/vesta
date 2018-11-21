@@ -3,6 +3,7 @@
 pip install -r requirements.txt
 ```  
 If there is a missing package, please install by yourself using pip.  
+also you need setup settings.py for your environment.   
 
 # Usage
 Server  
@@ -14,12 +15,56 @@ Nodes
 ```
 python gpu_info_sender.py
 ```  
-  
-You can change some settings with editing settings.py  
-For automatically process, using systemd and crontab will do the works.
+   
+For automatical process, using systemd and crontab will do the works.  
+To get GPU information, access `http://<server_address>/states/` , or to specify host `http://<server_address>/states/<host_name>/`  
+You can use url parameter to fetch how many log you want by `fetch_num=<# you want>`  
 
 # Browsing
 Not yet, sorry XD
+
+# Topology
+Topology is very simple, Master (server) and Slave (each local machine) style, but it is ad hoc.
+Server is only waiting the slaves to post the gpu information.  
+  
+# Response
+User can get the information of GPU by accessing `http://<server_address>/states/`.  
+Json response is like
+```
+{
+    # the order of data is ascending order in time
+    "host_name":[
+        # host_name log are in array
+        {
+            # each GPU will be denote by "gpu:<device_num>"
+            "gpu:0":{
+                # statues will be associative array (dict)
+                "gpu_name": "GeForce GTX 1080 Ti",
+                "temperature": "40",
+                .
+                .
+                .
+            },
+            "gpu:1":{...},
+                .
+                .
+                .
+            "gpu:#":{...}
+        },
+        {
+            "gpu:0":{...},
+                .
+                .
+                .
+            "gpu:#":{...}
+        },
+            .
+            .
+            .
+    ],
+    "host2_name":[...]
+}
+```
 
 # Database
 ## machine table

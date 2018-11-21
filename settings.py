@@ -22,7 +22,6 @@ STATUS_BAD = [SERVER_WAITING_UPLINK, SERVER_DOWN]
 
 # this will filter the networks
 # it will be used in re.search, so you can use regular expression
-VALID_NETWORK = "192.168.0.[0-9]+"
 VALID_NETWORK = "127.0.0.1"
 
 # gpu queries.

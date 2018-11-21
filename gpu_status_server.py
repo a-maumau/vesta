@@ -28,6 +28,42 @@ def send_uplink_detection(msg, host_name):
     except:
         pass
 
+def align_str(text, fill_char=" ", margin_char=" ", margin=(1,1), length=60, start=4, ellipsis="...", new_line=True):
+    margin_start_pos = max(0, start-margin[0])
+
+    if len(text)+margin_start_pos >= length:
+        text = text[margin_start_pos:length-len(ellipsis)-1]+ellipsis
+
+    text_end_pos = margin_start_pos+len(text)
+    suf_margin_pos = min(margin[1], length-text_end_pos)
+
+    arg = {
+            "pre_fill_str"   : fill_char*(margin_start_pos),
+            "pre_margin_str" : margin_char*margin[0],
+            "text"           : text,
+            "suf_margin_str" : margin_char*suf_margin_pos,
+            "suf_fill_str"   : fill_char*max(0, length-suf_margin_pos-text_end_pos),
+            "new_line"       : "\n" if new_line else ""
+           }
+
+    return "{pre_fill_str}{pre_margin_str}{text}{suf_margin_str}{suf_fill_str}{new_line}".format(**arg)
+
+def create_bar_str(current, total, msg="", fill_char="/", empty_char=" ", left_bracket="[", right_bracket="]", length=60, new_line=True):
+    bar_len = length-len(left_bracket)-len(right_bracket)-len(" ddd%")-len(msg)
+    fill_num = int((current/total)*bar_len)
+    percent = int((current/total)*100)
+
+    return "{}{}{}{}{} {: 3d}%{}".format(
+            msg, left_bracket, fill_char*fill_num, empty_char*(bar_len-fill_num), right_bracket, percent, "\n" if new_line else "")
+
+def trucate_str(text, length=25, fill_char=None, ellipsis="...", new_line=True):
+    if len(text) > length:
+        return text[:length-len(ellipsis)]+ellipsis
+    elif fill_char is not None:
+        return "{}{}".format(text, fill_char*(length-len(text)))
+    else:
+        return text
+
 """
 # this part is not looking good... should be merged?
 
@@ -36,6 +72,37 @@ database = None
 @classmethod
 def set_database(cls, database):
     cls.database = database
+"""
+
+"""
+    fetched data will be like            
+    "host1":[
+        {'gpu:0': {'available_memory': '10952',
+               'device_num': '0',
+               'gpu_name': 'GeForce GTX 1080 Ti',
+               'gpu_volatile': '0',
+               'processes': [{'pid': 1963,
+                              'name': '/usr/bin/X',
+                              'used_memory': '133'},
+                             {'pid': 3437,
+                              'name': 'compiz',
+                              'used_memory': '81'}],
+               'temperature': '38',
+               'timestamp': '2018/11/05 12:24:24.111',
+               'total_memory': '11169',
+               'used_memory': '217',
+               'uuid': 'GPU-...'},
+        'gpu:1': {'available_memory': '11170',
+               'device_num': '1',
+               'gpu_name': 'GeForce GTX 1080 Ti',
+               'gpu_volatile': '0',
+               'processes': [],
+               'temperature': '40',
+               'timestamp': '2018/11/05 12:24:24.113',
+               'total_memory': '11172',
+               'used_memory': '2',
+               'uuid': 'GPU-...'}}
+    ]
 """
 
 class StatesView(FlaskView):
@@ -84,8 +151,9 @@ class RegisterView(FlaskView):
 
     @route('/', methods=["GET"])
     def rergister(self):
-        # avoiding error, I think there is more token cause error...
-        name = request.args.get('host_name').replace(".", "_").replace("-", "_")
+        # for avoiding error in sqlite3, I think there is more token cause error...
+        name = request.args.get('host_name').replace(".", "_").replace(",", "_").replace("-", "_").replace("@", "_")
+        name = name.replace("[", "_").replace("]", "_").replace(":", "_").replace(";", "_")
         register_hash_code = request.args.get('token')
 
         if register_hash_code == TOKEN:
@@ -138,9 +206,41 @@ class UpdateView(FlaskView):
 
 class MainView(FlaskView):
     route_base = "/"
+    database = None
+
+    @classmethod
+    def set_database(cls, database):
+        cls.database = database
 
     def index(self):
-        return render_template('index.html', title='main')
+        if request.args.get('term', default=False, type=bool):
+            fetch_data = self.database.fetch_all(fetch_num=1)
+
+            response = ""
+            for host, v_array in fetch_data.items():
+                if v_array != []:
+                    data = v_array[0]
+                    response += "\n"+align_str(host, fill_char="#", margin_char=" ", margin=(1,1), start=4)
+
+                    for gpu, status in data.items():
+                        response += "[{}]\n".format(gpu)
+                        response += "temperature      memory used  memory available  gpu volatile\n"
+                        response += "       {: 3d}℃  {: 5d}/{: 5d}MiB         {: 5d}MiB          {: 3d}%\n".format(
+                                     int(status['temperature']), int(status['used_memory']), int(status['total_memory']),
+                                     int(status['available_memory']), int(status['gpu_volatile']))
+                        response += create_bar_str(current=int(status['used_memory']), total=int(status['total_memory']), msg="mem")
+
+                        for index, process_data in enumerate(status["processes"]):
+                            if index == len(status["processes"])-1:
+                                response += "└── {} {: 5d}MiB\n".format(trucate_str(process_data['name'], fill_char=" "), int(process_data['used_memory']))
+                            else:
+                                response += "├── {} {: 5d}MiB\n".format(trucate_str(process_data['name'], fill_char=" "), int(process_data['used_memory']))
+
+                        response += "\n"
+
+            return response
+        else:
+            return render_template('index.html', title='main')
 
 class HTTPServer(object):
     def __init__(self, database_name="gpu_states.db", database_dir="data", name="gpu_monitor", bind_host="0.0.0.0", quiet=False):
@@ -158,6 +258,7 @@ class HTTPServer(object):
         mkdir(self.database_dir)
         self.database = database.DataBase(path_join(self.database_dir, self.database_name))
 
+        MainView.set_database(self.database)
         MainView.register(self.app)
 
         StatesView.set_database(self.database)
@@ -189,8 +290,9 @@ class HTTPServer(object):
 
     def send_server_status(self):
         msg = "### Server Statuses ###\n"
+
         for hash_key, host in self.database.host_list.items():
-            msg += "{} : status {}\n".format(host["name"], "`Dead`" if host["status"] in STATUS_BAD else "Alive")
+            msg += "{} : {}\n".format(host["name"], "`Dead`" if host["status"] in STATUS_BAD else "Alive")
 
         resp = requests.post(SLACK_WEBHOOK, data=json.dumps({"text":msg}))
 

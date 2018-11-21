@@ -145,7 +145,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     parser.add_argument('--yaml_dir', type=str, default="data", help='the dir of yaml which token is saved.')
-    parser.add_argument('--yaml_name', type=str, default="yaml", help='path of yaml file.')
+    parser.add_argument('--yaml_name', type=str, default="token", help='path of yaml file.')
     parser.add_argument('--nvidia-smi', type=str, default="nvidia-smi", help='if you want to specify nvidia-smi command.')
 
     args = parser.parse_args()
