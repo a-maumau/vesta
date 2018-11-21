@@ -36,11 +36,14 @@ Json response is like
     "host_name":[
         # host_name log are in array
         {
+        	# server recorded timestamp
+			"timestamp":20181208153207, # YYYYMMDDhhmmss
             # each GPU will be denote by "gpu:<device_num>"
             "gpu:0":{
                 # statues will be associative array (dict)
                 "gpu_name": "GeForce GTX 1080 Ti",
                 "temperature": "40",
+                "timestamp": "2018/11/05 12:24:24.111",
                 .
                 .
                 .

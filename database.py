@@ -69,7 +69,7 @@ class DataBase(object):
         con = sqlite3.connect(self.database_path)
         cur = con.cursor()
 
-        create_table_query = "create table {} (timestamp TEXT, data BLOB)".format(host_name)
+        create_table_query = "create table {} (timestamp INTEGER, data BLOB)".format(host_name)
         cur.execute(create_table_query)
         cur.execute("insert into machines values(:id, :name, :ip_address)",
                     {"id":host_id, "name":host_name, "ip_address":host_ip})
@@ -99,7 +99,9 @@ class DataBase(object):
                 if len(result) != 0:
                     response[host_name] = []
                     for data in result[::-1]:
-                        response[host_name].append(self.expand_data(data[1]))
+                        record = self.expand_data(data[1])
+                        record["timestamp"] = data[0]
+                        response[host_name].append(record)
 
         con.close()
 
@@ -146,7 +148,7 @@ class DataBase(object):
         cur = con.cursor()
 
         cur.execute("insert into {} values(:timestamp, :data)".format(self.host_list[host_id]["name"]),
-                    {"timestamp":"{}".format(datetime.now().strftime("%Y%m%d%H%M%S")), "data":self.compress_data(data)})
+                    {"timestamp":"{}".format(int(datetime.now().strftime("%Y%m%d%H%M%S"))), "data":self.compress_data(data)})
 
         con.commit()
         con.close()
