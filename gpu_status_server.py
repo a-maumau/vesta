@@ -155,10 +155,10 @@ class RegisterView(FlaskView):
 
     def send_uplink_detection(self, host_name):
         msg = REGISTER_UPLINK_MSG.format(host_name)
-        try:
-            resp = requests.post(SLACK_WEBHOOK, data=json.dumps({"text":msg}))
-        except:
-            pass
+        
+        resp = requests.post(SLACK_WEBHOOK, data=json.dumps({"text":msg}))
+        if resp.history != [] and resp.history != 200:
+            print("could not send message to Slack.")
 
     @route('/', methods=["GET"])
     def rergister(self):
@@ -209,7 +209,7 @@ class UpdateView(FlaskView):
                 self.database.host_list[hash_key]["status"] = SERVER_AVAILABLE
                 self.database.host_list[hash_key]["last_update"] = time.time()
 
-                print("### register: {} hash:{} ###".format(name, hash_key))
+                print("### get update: {} ###".format(self.database.host_list[hash_key]["name"]))
 
                 return json.dumps({"status":"OK", "status_code":200})
             else:
@@ -314,20 +314,45 @@ class HTTPServer(object):
 
     def send_down_detection(self, host_name, down_time):
         msg = HOST_DOWN_MSG.format(host_name, down_time)
-        try:
-            resp = requests.post(SLACK_WEBHOOK, data=json.dumps({"text":msg}))
-        except:
-            pass
+        
+        resp = requests.post(SLACK_WEBHOOK, data=json.dumps({"text":msg}))
+        if resp.history != [] and resp.history != 200:
+            print("could not send message to Slack.")
 
     def send_server_status(self):
         msg = "### Server Statuses ###\n"
 
         for hash_key, host in self.database.host_list.items():
             msg += "{} : {}\n".format(host["name"], "`Dead`" if host["status"] in STATUS_BAD else "Alive")
+            if host["status"] in STATUS_OK:
+                fetch_data = self.database.fetch(host["name"], fetch_num=1)
+
+                for host_name, log_array in fetch_data.items():
+                    if log_array != []:
+                        data = log_array[0]
+
+                        for gpu, status in data.items():
+                            # pass the server's timestamp
+                            if gpu == "timestamp":
+                                continue
+
+                            if status["processes"] != []:
+                                dirty = True
+                                msg += "[{}] {}\n".format(gpu, status["timestamp"])
+                                for index, process_data in enumerate(status["processes"]):
+                                    if index == len(status["processes"])-1:
+                                        msg += "    └── {} {: 5d}MiB\n".format(
+                                                     trucate_str(process_data['name'], fill_char=" "), int(process_data['used_memory']))
+                                    else:
+                                        msg += "    ├── {} {: 5d}MiB\n".format(
+                                                     trucate_str(process_data['name'], fill_char=" "), int(process_data['used_memory']))
 
         resp = requests.post(SLACK_WEBHOOK, data=json.dumps({"text":msg}))
+        
+        if resp.history != [] and resp.history != 200:
+            print("could not send message to Slack.")
 
-    def watch_and_sleep(self, sleep_time=2, down_th_sec=300):
+    def watch_and_sleep(self, sleep_time=1, down_th_sec=300):
         if SCHEDULE_FUNCTION:
             exec(SCHEDULE_FUNCTION)
 
@@ -354,7 +379,7 @@ if __name__ == '__main__':
     parser.add_argument('--term_width', type=int, default=60, help='width of terminal printing.')
 
     # args for waching part
-    parser.add_argument('--sleep_time', type=int, default=10, help='')
+    parser.add_argument('--sleep_time', type=int, default=5, help='')
     parser.add_argument('--down_th', type=int, default=300, help='in sec')
 
     parser.add_argument('-quiet', action="store_true", default=False, help='only showing the log of loss and validation')
