@@ -245,7 +245,7 @@ class MainView(FlaskView):
                         if gpu == "timestamp":
                             continue
 
-                        response += "[{}] {}\n".format(gpu, status["timestamp"])
+                        response += "[{} ({})] {}\n".format(gpu, status["gpu_name"], status["timestamp"])
                         response += "temperature      memory used  memory available  gpu volatile\n"
                         response += "       {: 3d}C  {: 5d}/{: 5d}MiB         {: 5d}MiB          {: 3d}%\n".format(
                                      int(status['temperature']), int(status['used_memory']), int(status['total_memory']),
@@ -338,7 +338,7 @@ class HTTPServer(object):
 
                             if status["processes"] != []:
                                 dirty = True
-                                msg += "[{}] {}\n".format(gpu, status["timestamp"])
+                                msg += "[{} ({})] {}\n".format(gpu, status["gpu_name"], status["timestamp"])
                                 for index, process_data in enumerate(status["processes"]):
                                     if index == len(status["processes"])-1:
                                         msg += "    └── {} {: 5d}MiB\n".format(
@@ -376,7 +376,7 @@ if __name__ == '__main__':
     parser.add_argument('--bind_host', type=str, default="0.0.0.0", help='bind host IP address')
     # for bind post, please change PORT_NUM in settings.
 
-    parser.add_argument('--term_width', type=int, default=60, help='width of terminal printing.')
+    parser.add_argument('--term_width', type=int, default=80, help='width of terminal printing.')
 
     # args for waching part
     parser.add_argument('--sleep_time', type=int, default=5, help='')
