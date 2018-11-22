@@ -59,7 +59,7 @@ def get_gpu_info(nvidia_smi='nvidia-smi'):
 
         2.
             parse the `nvidia-smi` command output like
-            `nvidia-smi | awk '$2=="Processes:" {p=1} p && $2 == 0 && $3 > 0 {print $2,$3,$5,$6}'`
+            `nvidia-smi | awk '$2=="Processes:" {p=1} p && $2 ~ /[0-9]+/ && $3 > 0 {print $2,$3,$5,$6}'`
             output of above command is like
                 `0 30348 python 3679MiB`
             this way is easier, I think, but it really depends on the format of nvidia-smi.
@@ -84,7 +84,7 @@ def get_gpu_info(nvidia_smi='nvidia-smi'):
         gpu_info_dict["gpu:{}".format(line[0])] = { k: v for k, v in zip(alias_list+["processes"], line+[[]])}
 
     # get gpu processes ##################################################################
-    cmd = "nvidia-smi | awk '$2==\"Processes:\" {{p=1}} p && $2 == 0 && $3 > 0 {{print $2,$3,$5,$6}}'".format(nvidia_smi)
+    cmd = "nvidia-smi | awk '$2==\"Processes:\" {{p=1}} p && $2 ~ /[0-9]+/ && $3 > 0 {{print $2,$3,$5,$6}}'".format(nvidia_smi)
     output = subprocess.check_output(cmd, shell=True).decode("utf-8")
     lines = output.split('\n')
     lines = [ line.strip().split(" ") for line in lines if line.strip() != '' ]
