@@ -122,7 +122,6 @@ def get_gpu_info(nvidia_smi='nvidia-smi'):
 
 def register(yaml_path, use_https=False):
     host_name = os.uname()[1]
-    host_name = "host1"
 
     resp = requests.get("http{}://{}:{}/register/?host_name={}&token={}".format("s" if use_https else "", 
                                                                                 IP, PORT_NUM, host_name, TOKEN))
@@ -141,36 +140,7 @@ def register(yaml_path, use_https=False):
     exit(1)
 
 def post_data(token, yaml_path, use_https=False):
-    #content = get_gpu_info()
-    content = {
-                'gpu:0': {
-                    'device_num': 0,
-                    'uuid': 'GPU-8db7576b-56b8-e7b1-0ea6-2cb06a28bf4f',
-                    'gpu_name': 'GeForce GTX 1080 Ti',
-                    'temperature': 36,
-                    'total_memory': 11169,
-                    'available_memory': 10934,
-                    'used_memory': 235,
-                    'timestamp': '2018/12/01 14:32:37.140',
-                    'gpu_volatile': 0,
-                    'processes': [
-                        {'pid': "1963", 'name': '/usr/bin/X', 'user': 'root', 'used_memory': 148},
-                        {'pid': "3437", 'name': 'compiz', 'user': 'test1', 'used_memory': 84}
-                    ]
-                },
-                'gpu:1': {
-                    'device_num': 1,
-                    'uuid': 'GPU-9c473d58-b3e8-0709-1258-105ac9445191',
-                    'gpu_name': 'GeForce GTX 1080 Ti',
-                    'temperature': 38,
-                    'total_memory': 11172,
-                    'available_memory': 11170,
-                    'used_memory': 2,
-                    'timestamp': '2018/12/01 14:32:37.141',
-                    'gpu_volatile': 0,
-                    'processes': [{'pid': "1963", 'name': '/usr/bin/X', 'user': 'root', 'used_memory': 148}]
-                }
-            }
+    content = get_gpu_info()
 
     resp = requests.post("http{}://{}:{}/update/host/{}?token={}".format("s" if use_https else "",
                                                                        IP, PORT_NUM, token, TOKEN),

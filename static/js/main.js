@@ -176,7 +176,6 @@ function create_chart_data(data){
 
 function init_chart(host_name, data){
     var chart_data = create_chart_data(data["data"][0]["gpu_data"]);
-    console.log(host_name);
 
     _mem_gauge = create_mem_usage_gauge(host_name+"_mem_gauge", parseFloat(chart_data["max_mem"].toFixed(1)), parseFloat(chart_data["min_mem"].toFixed(1)));
     _vol_gauge = create_volatile_gauge(host_name+"_vol_gauge", chart_data["max_volatile"], chart_data["min_volatile"]);
@@ -210,7 +209,6 @@ function update_contents(host_name, data){
 
     host_content_element.find(".timestamp").text("last update: "+data["data"][0]["timestamp"]);
 
-    console.log("update "+host_name)
     // update charts
     charts[host_name]["mem_gauge"].series[0].data[0].update({y:parseFloat(chart_data["max_mem"].toFixed(1))});
     charts[host_name]["mem_gauge"].series[1].data[0].update({y:parseFloat(chart_data["min_mem"].toFixed(1))});
@@ -274,7 +272,6 @@ function update(update_data){
         if(page_content_name_list.indexOf(host_name) < 0){
             _element_data = fetch_content_element(host_name);
             if(_element_data["found"]){
-                console.log(host_name);
                 insert_head.after(_element_data["element"]);
                 set_collapsible(host_name);
                 init_chart(host_name, update_data["update"][host_name]);
