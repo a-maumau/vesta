@@ -5,36 +5,57 @@ import yaml
 import requests
 import argparse
 import subprocess
+import collections as cl
 
 from settings import *
 from path_util import *
+
+# gpu queries.
+# see the help by `nvidia-smi --help-query-gpu` in detail.
+GPU_QUERY = [#  (query, alias)
+              ('index', "device_num"),       # this must come first
+               ('uuid', "uuid"),             #
+               ('name', "gpu_name"),         #
+    ('temperature.gpu', "temperature"),      # in celsius
+       ('memory.total', "total_memory"),     # in MiB
+        ('memory.free', "available_memory"), # in MiB
+        ('memory.used', "used_memory"),      # in MiB
+          ('timestamp', "timestamp"),        #
+    ('utilization.gpu', "gpu_volatile")      # in percentage
+]
+
+NUMBERS = ["device_num", "temperature", "total_memory", "available_memory", "used_memory", "gpu_volatile"]
 
 def get_gpu_info(nvidia_smi='nvidia-smi'):
     """
         example output of this function
 
-        {'gpu:0': {'available_memory': '10952',
+        {'gpu:0',
+              {'available_memory': '10934',
                'device_num': '0',
                'gpu_name': 'GeForce GTX 1080 Ti',
                'gpu_volatile': '0',
-               'processes': [{'pid': 1963,
-                              'name': '/usr/bin/X',
-                              'used_memory': '133'},
-                             {'pid': 3437,
-                              'name': 'compiz',
-                              'used_memory': '81'}],
-               'temperature': '38',
-               'timestamp': '2018/11/05 12:24:24.111',
+               'processes': [{'name': '/usr/bin/X',
+                              'pid': '1963',
+                              'used_memory': '148',
+                              'user': 'root'},
+                             {'name': 'compiz',
+                              'pid': '3437',
+                              'used_memory': '84',
+                              'user': 'user1'}],
+               'temperature': '36',
+               'timestamp': '2018/11/30 23:29:47.115',
                'total_memory': '11169',
-               'used_memory': '217',
-               'uuid': 'GPU-...'},
-        'gpu:1': {'available_memory': '11170',
+               'used_memory': '235',
+               'uuid': 'GPU-...'}),
+        {'gpu:1',
+              {'available_memory': '11170',
                'device_num': '1',
                'gpu_name': 'GeForce GTX 1080 Ti',
                'gpu_volatile': '0',
                'processes': [],
-               'temperature': '40',
-               'timestamp': '2018/11/05 12:24:24.113',
+               'temperature': '38',
+               'timestamp': '2018/11/30 23:29:47.117',
                'total_memory': '11172',
                'used_memory': '2',
                'uuid': 'GPU-...'}}
@@ -67,7 +88,7 @@ def get_gpu_info(nvidia_smi='nvidia-smi'):
         at this time, I chose 2.
     """
 
-    gpu_info_dict = {}
+    gpu_info_dict = cl.OrderedDict()
 
     # get gpu status ######################################################################
     query_list = list(map(lambda x: x[0], GPU_QUERY))
@@ -81,7 +102,7 @@ def get_gpu_info(nvidia_smi='nvidia-smi'):
 
     for line in lines:
         line = line.split(", ")
-        gpu_info_dict["gpu:{}".format(line[0])] = { k: v for k, v in zip(alias_list+["processes"], line+[[]])}
+        gpu_info_dict["gpu:{}".format(line[0])] = {k:int(v) if k in NUMBERS else v for k, v in zip(alias_list+["processes"], line+[[]])}
 
     # get gpu processes ##################################################################
     cmd = "nvidia-smi | awk '$2==\"Processes:\" {{p=1}} p && $2 ~ /[0-9]+/ && $3 > 0 {{print $2,$3,$5,$6}}'".format(nvidia_smi)
@@ -91,14 +112,20 @@ def get_gpu_info(nvidia_smi='nvidia-smi'):
 
     for line in lines:
         # each line will have ["gpu index", "pid", "command", "Used memory"]
-        gpu_info_dict["gpu:{}".format(line[0])]["processes"].append({"pid":line[1], "name":line[2], "used_memory":line[3].replace("MiB", "")})
+        pid_user = subprocess.check_output('ps -o uname= -p "{}"'.format(line[1]), shell=True).decode("utf-8").strip("")
+        gpu_info_dict["gpu:{}".format(line[0])]["processes"].append({"pid":line[1],
+                                                                     "name":line[2],
+                                                                     "user":pid_user.rstrip("\n"),
+                                                                     "used_memory":int(line[3].replace("MiB", ""))})
     
     return gpu_info_dict
 
-def register(yaml_path):
+def register(yaml_path, use_https=False):
     host_name = os.uname()[1]
+    host_name = "host1"
 
-    resp = requests.get("http://{}:{}/register/?host_name={}&token={}".format(IP, PORT_NUM, host_name, TOKEN))
+    resp = requests.get("http{}://{}:{}/register/?host_name={}&token={}".format("s" if use_https else "", 
+                                                                                IP, PORT_NUM, host_name, TOKEN))
     if resp.status_code == requests.codes.ok:
         resp_dict = resp.json()
         if resp_dict["status_code"] == 200:
@@ -106,25 +133,59 @@ def register(yaml_path):
             # {'id': 'f77818f42cabfdf1358250463a2db3d6', 'register_name': 'script_test', 'status': 'OK', 'status_code': 200}
 
             with open(yaml_path, "w") as yaml_writer:
-                yaml_writer.write(yaml.dump({"hash_key":resp_dict["id"], "registered_name":resp_dict["register_name"]}, default_flow_style=False))
+                yaml_writer.write(yaml.dump({"hash_key":resp_dict["id"], "registered_name":resp_dict["register_name"]},
+                                            default_flow_style=False))
 
             return resp_dict["id"]
     
     exit(1)
 
-def post_data(token, yaml_path):
-    content = get_gpu_info()
+def post_data(token, yaml_path, use_https=False):
+    #content = get_gpu_info()
+    content = {
+                'gpu:0': {
+                    'device_num': 0,
+                    'uuid': 'GPU-8db7576b-56b8-e7b1-0ea6-2cb06a28bf4f',
+                    'gpu_name': 'GeForce GTX 1080 Ti',
+                    'temperature': 36,
+                    'total_memory': 11169,
+                    'available_memory': 10934,
+                    'used_memory': 235,
+                    'timestamp': '2018/12/01 14:32:37.140',
+                    'gpu_volatile': 0,
+                    'processes': [
+                        {'pid': "1963", 'name': '/usr/bin/X', 'user': 'root', 'used_memory': 148},
+                        {'pid': "3437", 'name': 'compiz', 'user': 'test1', 'used_memory': 84}
+                    ]
+                },
+                'gpu:1': {
+                    'device_num': 1,
+                    'uuid': 'GPU-9c473d58-b3e8-0709-1258-105ac9445191',
+                    'gpu_name': 'GeForce GTX 1080 Ti',
+                    'temperature': 38,
+                    'total_memory': 11172,
+                    'available_memory': 11170,
+                    'used_memory': 2,
+                    'timestamp': '2018/12/01 14:32:37.141',
+                    'gpu_volatile': 0,
+                    'processes': [{'pid': "1963", 'name': '/usr/bin/X', 'user': 'root', 'used_memory': 148}]
+                }
+            }
 
-    resp = requests.post("http://{}:{}/update/{}?token={}".format(IP, PORT_NUM, token, TOKEN), data=json.dumps(content), headers={'Content-Type': 'application/json'})
+    resp = requests.post("http{}://{}:{}/update/host/{}?token={}".format("s" if use_https else "",
+                                                                       IP, PORT_NUM, token, TOKEN),
+                         data=json.dumps(content), headers={'Content-Type': 'application/json'})
     if resp.status_code == requests.codes.ok:
         resp_dict = resp.json()
 
         # in case server has initialized the database
         if resp_dict["status_code"] == 404:
             token = register(yaml_path)
-            resp = requests.post("http://{}:{}/update/{}?token={}".format(IP, PORT_NUM, token, TOKEN), data=json.dumps(content), headers={'Content-Type': 'application/json'})
+            resp = requests.post("http{}://{}:{}/update/host/{}?token={}".format("s" if use_https else "",
+                                                                               IP, PORT_NUM, token, TOKEN),
+                                 data=json.dumps(content), headers={'Content-Type': 'application/json'})
 
-def main(token_yaml_name="token", yaml_dir="data", nvidia_smi="nvidia-smi"):
+def main(token_yaml_name="token", yaml_dir="data", nvidia_smi="nvidia-smi", use_https=False):
     yaml_path = path_join(yaml_dir, token_yaml_name+".yaml")
 
     # in case it does not exist
@@ -135,11 +196,11 @@ def main(token_yaml_name="token", yaml_dir="data", nvidia_smi="nvidia-smi"):
             if yaml_data is not None:
                 token = yaml_data["hash_key"]
             else:
-                token = register(yaml_path)
+                token = register(yaml_path, use_https)
     else:
-        token = register(yaml_path)
+        token = register(yaml_path, use_https)
 
-    post_data(token, yaml_path)
+    post_data(token, yaml_path, use_https)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -147,7 +208,8 @@ if __name__ == '__main__':
     parser.add_argument('--yaml_dir', type=str, default="data", help='the dir of yaml which token is saved.')
     parser.add_argument('--yaml_name', type=str, default="token", help='path of yaml file.')
     parser.add_argument('--nvidia-smi', type=str, default="nvidia-smi", help='if you want to specify nvidia-smi command.')
+    parser.add_argument('--use_https', action="store_true", default=False, help='')
 
     args = parser.parse_args()
     
-    main(args.yaml_name, args.yaml_dir, args.nvidia_smi)
+    main(args.yaml_name, args.yaml_dir, args.nvidia_smi, args.use_https)

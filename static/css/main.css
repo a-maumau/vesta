@@ -1,0 +1,411 @@
+/*
+    should move to Sass ?
+*/
+
+@charset "UTF-8";
+/* variables **********************************/
+:root {
+    --entry_head_height: 200px;
+    --entry_content_max_height: 280px;
+
+    --memory_usage_pie_height: 220px;
+
+    --bad_status_color: #ff3232;
+
+    --info_table_head_color: #5bb;
+    --sub_info_table_head_color: #ff3a6a;
+
+    --tc_free_mem_width: 120px;
+    --tc_volatile_width: 80px;
+    --tc_temperature_width: 80px;
+    --tc_gpu_name_width: 95px;
+    --tc_command_name_width: 180px;
+    --tc_user_name_width: 100px;
+
+    --table_area_detail_info_height: 200px;
+    --gpu_memory_deatil_height: 220px;
+
+    --pagination_this_page_color: var(--sub_info_table_head_color);
+    --pagination_page_color: var(--info_table_head_color);
+}
+
+body {
+  padding-top: 54px;
+}
+
+@media (min-width: 992px) {
+  body {
+    padding-top: 56px;
+  }
+}
+
+/* highcharts *********************************/
+.highcharts-container {
+    width:100% !important;
+    height: var(--entry_head_height) !important;
+    vertical-align: center;
+}
+
+.highcharts-root {
+    width:100% !important;
+    height:var(--entry_head_height) !important;
+    vertical-align: center;
+}
+
+/* pie chart of memory usage */
+.gpu_mem_pie {
+    width: var(--memory_usage_pie_height);
+}
+/**********************************************/
+
+/* boostrap ***********************************/
+.row {
+    padding-bottom: 10px;
+}
+
+.col-md-6.host_info {
+    height: var(--entry_head_height);
+    overflow-y: hidden;
+    padding: 0 5px 0 10px;
+}
+
+.col-md-6.sub_info {
+    height: var(--entry_head_height);
+    overflow-y: hidden;
+    padding: 0 10px 0 0;   
+}
+/**********************************************/
+
+/* collapsible content setting ****************/
+.collapsible {
+    color: #444;
+    cursor: pointer;
+}
+
+.collapsible:hover {
+    box-shadow:0 1px 5px rgba(0,0,0,.90);
+}
+
+.collapsible.bad_status {
+    cursor: default;
+    background-color: #ddd;
+    box-shadow: none;
+}
+.collapsible.bad_satus:hover {
+    box-shadow: none;
+}
+
+.content {
+    padding: 0 18px;
+    min-width: 320px;
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.2s ease-out;
+    background-color: #f9f9f9;
+}
+
+.summary_graph_wrapper {
+    clear: both;
+}
+
+.summary_graph_wrapper > .host_summary_graph {
+    float: left;
+}
+
+.host_summary_graph{
+    max-width: 33.3%;
+    max-height: 100%;
+}
+
+.gpu_entry:not(.last_entry) {
+    padding-top: 15px;
+    border-bottom: solid 1px #888888;
+}
+
+.bad_status_head {
+    color: var(--bad_status_color);
+}
+
+.timestamp {
+    padding-left: 15px;
+}
+
+h1.title small{
+    padding-left: 15px;
+}
+
+h3.host_name_head{
+    padding-left: 10px;
+}
+
+h3.host_name_head small {
+    padding-left: 15px;
+}
+
+
+h4.gpu_info_head > small {
+    padding-left: 15px;
+    font-size: 14px;
+}
+
+p.gpu_info_text{
+    font-size: 18px;
+}
+
+/**********************************************/
+
+/* table **************************************/
+.value{
+    text-align: right;
+}
+
+.tc_gpu_name {
+    width: var(--tc_gpu_name_width);
+}
+
+.tc_free_mem {
+    width: var(--tc_free_mem_width);
+}
+
+.tc_volatile {
+    width: var(--tc_volatile_width);
+}
+
+.tc_temperature{
+    width: var(--tc_temperature_width);
+}
+
+.tc_command_name {
+    width: var(--tc_command_width);
+}
+
+.tc_user_name {
+    width: var(--tc_user_name_width);
+}
+
+.table_area_sub_info {
+    max-height: var(--entry_head_height);
+    width: 98%;
+    overflow-y: scroll;
+    overflow-x: hidden;
+    border: 1px #ccc solid;
+}
+
+.table_area_detail_info {
+    max-height: var(--entry_content_max_height);
+    height: var(--table_area_detail_info_height);
+    width:calc(100% - var(--memory_usage_pie_height));
+    overflow-y: scroll;
+    overflow-x: hidden;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border: 1px #ccc solid;
+}
+
+.info_table.sub_info_table {
+    width: 100%;
+}
+
+.info_table {
+    font-size: 14px;
+    width: 100%;
+    margin: 0 auto 0px;
+    padding: 10px 0px;
+    background-color: #f9f9f9;
+    -moz-border-radius: 3px;
+    -webkit-border-radius: 3px;
+    border-radius: 3px;
+    border: 1px #ddd solid;
+    border-radius: 6px;
+    border-spacing: 0;
+}
+
+.info_table.sub_info_table thead {
+    background-color: var(--sub_info_table_head_color);
+    color: #fff;
+}
+
+.info_table thead {
+    background-color: var(--info_table_head_color);
+    color: #fff;
+}
+.info_table th {
+    margin-bottom: 9px;
+    padding: 6px 12px;
+    border-left: 1px #4bb solid;
+    font-weight: normal;
+}
+
+.info_table th:first-child {
+    border-left-width: 0;
+}
+
+.info_table tbody {
+    vertical-align: top;
+}
+
+.info_table tbody td {
+    border-left: 1px #ddd solid;
+}
+.info_table tbody td:first-child {
+    border-left-width: 0;
+}
+
+/**********************************************/
+
+/* pagination *********************************/
+.pagination {
+  margin-bottom: 15px;
+}
+
+.pagination a.page-link.has_link {
+    color: var(--pagination_page_color);
+}
+
+.pagination a.page-link.has_link.this_page {
+    color: var(--pagination_this_page_color);
+    font-weight: 600;
+}
+
+.pagination a.page-link:not(.has_link) {
+    color: #aaa;
+    background-color: #ccc;
+}
+
+.pagination a.page-link:not(.has_link):hover {
+    background-color: #ccc;
+}
+
+/**********************************************/
+
+/* for mobile, responsive */
+@media screen and (max-width: 768px) {
+    /* pie chart of memory usage */
+    .gpu_mem_pie{
+        display: none;
+    }
+
+    /* collapsible content setting ************/
+    h4.gpu_info_head > small {
+        padding-left: 15px;
+        font-size: 14px;
+    }
+    p.gpu_info_text{
+        font-size: 16px;
+    }
+    /******************************************/
+
+    /* table***********************************/
+    .value{
+        text-align: left;
+    }
+
+    .table_area_detail_info {
+        width: 100%;
+    }
+
+    .info_table.sub_info_table, .sub_info {
+        display: none;
+    }
+
+    .table_area_detail_info .info_table {
+        width: 100%;
+    }
+    .table_area_detail_info .info_table tbody tr {
+        display: block;
+        padding-bottom: 12px;
+    }
+
+    .table_area_detail_info .info_table tbody td {
+        display: block;
+        padding: 3px 0;
+        width: 100%;
+        border-left-width: 0;
+    }
+    .table_area_detail_info .info_table tbody td:before {
+        padding-left: 25px;
+        display: inline-block;
+        vertical-align: middle;
+        *vertical-align: auto;
+        *zoom: 1;
+        *display: inline;
+        margin-right: 5px;
+        color: #888;
+        font-weight: normal;
+    }
+
+    /* add head name to content*/
+    .table_area_detail_info .info_table tbody td:nth-of-type(2):before {
+        content: "User: ";
+    }
+    .table_area_detail_info .info_table tbody td:nth-of-type(3):before {
+        content: "Mem:";
+    }
+    .table_area_detail_info .info_table tbody .tc_command_name {
+        padding-left: 10px;
+        background-color: #5cc;
+        color: #fff;
+        text-align: left;
+    }
+    .table_area_detail_info th{
+        display: none;
+    }
+    .table_area_detail_info tr{
+        padding: 0 0px;
+    }
+    /******************************************/
+}
+/* for PC, responsive */
+@media screen and (min-width: 769px) {
+    /* collapsible content setting ************/
+    h4.gpu_info_head > small{
+        padding-left: 10px;
+        font-size: 16px;
+    }
+    p.gpu_info_text{
+        font-size: 18px;
+        padding-left: 25px;
+    }
+    /******************************************/
+
+    /* table **********************************/
+    .gpu_memory_deatil > div{
+        float: left;
+    }
+    .gpu_memory_deatil{
+        height: var(--gpu_memory_deatil_height);
+        clear: both;
+    }
+
+    .info_table_mobile {
+        display: none;
+    }
+
+    .info_table th, .info_table td {
+        display: table-cell;
+    }
+
+    .info_table td:before {
+        display: none;
+    }
+
+    .info_table tr:nth-child(even) {
+        background-color: #eaeaea;
+    }
+    .info_table td {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+
+        max-width: 0;
+        padding: 9px 15px;
+    }
+    .info_table td:before {
+        display: none;
+    }
+
+    .info_table .date {
+        width: 6em;
+    }
+    /******************************************/
+}
