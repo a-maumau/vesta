@@ -129,8 +129,7 @@ class DataBase(object):
         # output of cur.fetchall() is like [(table1, ), (table2, ), ...]
         table_list = list(map(lambda x: x[0], cur.fetchall()))
 
-        for host in self.host_list.values():
-            host_name = host["name"]
+        for host_name in list(map(lambda x: self.host_list[x]["name"], self.host_order)):
             if host_name in table_list:
                 query = "select * from {} order by timestamp desc limit {};".format(host_name, fetch_num)
                 cur.execute(query)
