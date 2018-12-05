@@ -27,9 +27,9 @@
                         {% for gpu_id, data in gpu_info.items() %}
                         <tr id="{{ host_name }}_{{ gpu_id }}_gpu_info">
                             <td class="tc_gpu_name">{{ gpu_id }}</td>
-                            <td class="tc_free_mem value">{{ data.available_memory }}</td>
-                            <td class="tc_volatile value">{{ data.gpu_volatile }}</td>
-                            <td class="tc_temperature value">{{ data.temperature }}</td>
+                            <td class="tc_free_mem value">{{ data.available_memory }}MiB</td>
+                            <td class="tc_volatile value">{{ data.gpu_volatile }}%</td>
+                            <td class="tc_temperature value">{{ data.temperature }}°C</td>
                         </tr>
                         {% endfor %}
                     </tbody>
