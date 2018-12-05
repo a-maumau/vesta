@@ -200,16 +200,19 @@ def format_gpu_detail_info(fetched_data, term_width=80):
                               fill_char=" ", margin_char=" ", margin=(2,0), length=term_width, start=0)
             info += hr
 
-            """
-            ┌　┐　┘　└ ─ │
-              ┌[ gpu:0 GeForce GTX 1080 Ti 2018/12/01 14:32:37.140 ]───────────────────────┐
-              │     memory used  memory available  gpu volatile  temperature               │
-              │  235 / 11169MiB          10934MiB            0%         36°C               │
-              │                                                                            │
-              │ mem [/                                                              ]   2% │
-              │  ├── /usr/bin/X                   148MiB                                   │
-              │  └── compiz                        84MiB                                   │
-              └────────────────────────────────────────────────────────────────────────────┘
+            """ ┌　┐　┘　└ ─ │
+                                              term width
+            <-------------------------------------------------------------------------------->
+
+            <>  <- margin 2chars                                          margin 2chars ->  <>
+              ┌[ gpu:0 GeForce GTX 1080 Ti 2018/12/01 14:32:37.140 ]───────────────────────┐  
+              │     memory used  memory available  gpu volatile  temperature               │  
+              │  235 / 11169MiB          10934MiB            0%         36°C               │  
+              │                                                                            │  
+              │ mem [/                                                              ]   2% │  
+              │  ├── /usr/bin/X                   148MiB                                   │  
+              │  └── compiz                        84MiB                                   │  
+              └────────────────────────────────────────────────────────────────────────────┘  
             """
             for gpu, status in data["gpu_data"].items():
                 info += "  ┌{}┐\n".format(truncate_str("[ {} {} {} ]".format(gpu, status["gpu_name"], status["timestamp"]),

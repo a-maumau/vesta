@@ -277,6 +277,8 @@ function update(update_data){
                 init_chart(host_name, update_data["update"][host_name]);
                 insert_head = host_entry_head.find("#"+host_name+"_hr");
                 page_content_del_list = page_content_del_list.filter(function(x){return x !=host_name});
+                // replace with updated data
+                page_data[host_name] = update_data["update"][host_name];
             }else{
                 continue;
             }
@@ -292,15 +294,15 @@ function update(update_data){
                 }else{
                     update_contents(host_name, update_data["update"][host_name]);
                 }
+
+                // replace with updated data
+                page_data[host_name] = update_data["update"][host_name];
             }
             // delete from deleteing content list
             page_content_del_list = page_content_del_list.filter(function(x){return x !=host_name});
             // move to next index
             insert_head = host_entry_head.find("#"+host_name+"_hr");
         }
-
-        // replace with updated data
-        page_data[host_name] = update_data["update"][host_name];
     }
 
     // delete contents which are not anymore in the page content list
@@ -339,7 +341,12 @@ $(document).ready(function(){
         update(data)
     }
     
-    ws.onopen = function(ev){
-        ws.send(1);
+    ws.onopen = function(e){
+        ws.send(now_page_num);
+    }
+
+    ws.onclose = function(e){
+        // try to reconnect
+        ws = new WebSocket(ws_url);
     }
 });

@@ -6,7 +6,7 @@ This script is depending on `Python3`, and `nvidia-smi`, `awk`, `ps` commands.
 pip install -r requirements.txt
 ```  
 If there is a missing package, please install by yourself using pip.  
-also you need setup settings.py for your environment.   
+also you need setup vesta/settings.py for your environment.   
 
 # Usage
 for Server  
@@ -153,7 +153,7 @@ hash_code = random.getrandbits(128)
 Each host has own table for logging.  
 Table field is  
 
-| timestamp (TEXT) | data (BLOB)|
+| timestamp (INTEGER) | data (BLOB)|
 |-----------|------------| 
 | timestamp_1 | data_1 |
 | timestamp_2 | data_2 |

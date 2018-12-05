@@ -7,12 +7,16 @@ import collections as cl
 from pprint import pprint
 from datetime import datetime
 
-from env import *
-from settings import *
+from .env import *
+from .settings import *
 
 BASE_TABLE_NAME = "machines"
 
 class DataBase(object):
+    """
+        takes care of sqlite3 database
+    """
+    
     def __init__(self, database_path, sort_by="ip"):
         # because of thread safe, it won't allow us to open in advance
         #self.con = sqlite3.connect(database_path)
@@ -279,4 +283,4 @@ class DataBase(object):
         return bz2.compress(pickle.dumps(data, pickle.HIGHEST_PROTOCOL))
 
     def expand_data(self, data):
-        return pickle.loads(bz2.decompress(data)) 
+        return pickle.loads(bz2.decompress(data))
