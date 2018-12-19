@@ -197,7 +197,7 @@ def format_gpu_detail_info(fetched_data, term_width=80):
             info += "\n"+align_str(host_name+" :: {}".format(host_info["ip_address"]),
                                    fill_char="#", margin_char=" ", margin=(1,1), length=term_width, start=4)
             info += align_str("last update: {}".format(data["timestamp"]),
-                              fill_char=" ", margin_char=" ", margin=(2,0), length=term_width, start=0)
+                              fill_char=" ", margin_char=" ", margin=(0,0), length=term_width, start=2)
             info += hr
 
             """ ┌　┐　┘　└ ─ │

@@ -1,6 +1,6 @@
 import argparse
 
-from vesta.gpu_info_sender import send_info
+from vesta.send_gpu_info import send_info
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
