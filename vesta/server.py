@@ -356,9 +356,9 @@ class MainView(FlaskView):
                 fetch_data = self.database.fetch_all(fetch_num=1)
 
                 if request.args.get('detail', default=False, type=bool):
-                    response = "vesta ver. {}\n".format(__version__)+format_gpu_detail_info(fetch_data, term_width=self.term_width)
+                    response = "vesta ver. {}".format(__version__)+format_gpu_detail_info(fetch_data, term_width=self.term_width)
                 else:
-                    response = "vesta ver. {}\n".format(__version__)+format_gpu_info(fetch_data)
+                    response = "vesta ver. {}".format(__version__)+format_gpu_info(fetch_data)
             else:
                 fetch_data = self.database.fetch_page(page_num)
 
