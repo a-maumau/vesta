@@ -26,6 +26,11 @@ from .settings import *
 from .path_util import *
 from .format_str import *
 
+# need some patch
+# https://github.com/miguelgrinberg/Flask-SocketIO/issues/65
+from gevent import monkey
+monkey.patch_all()
+
 WS_RECEIVE_TIMEOUT = 2.0
 
 def create_response_403(info_msg="forbidden"):
@@ -135,7 +140,7 @@ class StatesView(FlaskView):
             if request.args.get('term', default=False, type=bool):
                 fetch_data = self.database.fetch(host_name, fetch_num=1)
 
-                return format_gpu_detail_info(fetch_data, term_width=self.term_width)
+                return "vesta ver. {}\n".format(__version__)+format_gpu_detail_info(fetch_data, term_width=self.term_width)
 
             else:
                 fetch_num = request.args.get('fetch_num', default=1, type=int)
@@ -351,16 +356,16 @@ class MainView(FlaskView):
                 fetch_data = self.database.fetch_all(fetch_num=1)
 
                 if request.args.get('detail', default=False, type=bool):
-                    response = format_gpu_detail_info(fetch_data, term_width=self.term_width)
+                    response = "vesta ver. {}\n".format(__version__)+format_gpu_detail_info(fetch_data, term_width=self.term_width)
                 else:
-                    response = format_gpu_info(fetch_data)
+                    response = "vesta ver. {}\n".format(__version__)+format_gpu_info(fetch_data)
             else:
                 fetch_data = self.database.fetch_page(page_num)
 
                 if request.args.get('detail', default=False, type=bool):
-                    response = format_gpu_detail_info(fetch_data, term_width=self.term_width)
+                    response = "vesta ver. {}\n".format(__version__)+format_gpu_detail_info(fetch_data, term_width=self.term_width)
                 else:
-                    response = format_gpu_info(fetch_data)
+                    response = "vesta ver. {}\n".format(__version__)+format_gpu_info(fetch_data)
 
             return response
         else:
@@ -412,11 +417,13 @@ class HTTPServer(object):
             self.app.logger.disabled = True
 
     def start(self, ssl_context=None):
-        self.main_thread = threading.Thread(target=self.app.run, args=(self.bind_host, self.bind_port), kwargs={"ssl_context":ssl_context})
-        self.ws_thread = threading.Thread(target=self.wsgi_server.serve_forever())
+        # it seems wrapping the flask server working only calling the wsgi_server
+        # I will delete this part next release
+        #self.main_thread = threading.Thread(target=self.app.run, args=(self.bind_host, self.bind_port), kwargs={"ssl_context":ssl_context})
+        self.ws_thread = threading.Thread(target=self.wsgi_server.serve_forever)
 
-        self.main_thread.daemon = True
-        self.main_thread.start()
+        #self.main_thread.daemon = True
+        #self.main_thread.start()
         self.ws_thread.daemon = True
         self.ws_thread.start()
 
@@ -464,7 +471,8 @@ class HTTPServer(object):
         """
 
         if SCHEDULE_FUNCTION:
-            exec(SCHEDULE_FUNCTION)
+            for sche in SCHEDULE_FUNCTION:
+                exec(sche)
 
         while True:
             schedule.run_pending()

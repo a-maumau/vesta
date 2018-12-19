@@ -34,6 +34,7 @@
 
 // for websocket
 var ws;
+var check_ws_stat;
 // keep charts for update
 var charts = {};
 
@@ -327,13 +328,7 @@ function fetch_content_element(host_name){
     return resp;
 }
 
-$(document).ready(function(){
-    for (var host_name in page_data){
-        set_collapsible(host_name);
-        init_chart(host_name, page_data[host_name]);
-    }
-    init_pagination();
-
+function make_ws_connection(){
     ws = new WebSocket(ws_url);
 
     ws.onmessage = function(e) {
@@ -345,8 +340,25 @@ $(document).ready(function(){
         ws.send(now_page_num);
     }
 
-    ws.onclose = function(e){
-        // try to reconnect
-        ws = new WebSocket(ws_url);
+    /*ws.onclose = function(e) { 
+        console.log('Socket is closed. Reconnect will be attempted in 1 second.', e.reason);
+    }*/
+}
+
+function check_websocket_status(){
+    // if close
+    if(ws.readyState == 3){
+        make_ws_connection();
     }
+}
+
+$(document).ready(function(){
+    for (var host_name in page_data){
+        set_collapsible(host_name);
+        init_chart(host_name, page_data[host_name]);
+    }
+    init_pagination();
+    make_ws_connection();
+
+    check_ws_stat = setInterval(check_websocket_status, 10*1000);
 });

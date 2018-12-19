@@ -24,7 +24,8 @@ VALID_NETWORK = "127.0.0.1"
 
 # you can use python schedule module to schedule the announcement of somethin.
 # in this case, it will use the function self.send_servere_status for every day at00:00 
-SCHEDULE_FUNCTION = 'schedule.every().day.at("00:00").do(self.send_server_status)'
+# must be a iteratable object
+SCHEDULE_FUNCTION = ['schedule.every().day.at("00:00").do(self.send_server_status)']
 
 # if you use {} it will be filled with host name
 REGISTER_UPLINK_MSG = "⬆︎⬆︎⬆︎ `Uplink` Detected - New uplink from `{}`. Hello!"
