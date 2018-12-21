@@ -356,9 +356,9 @@ class MainView(FlaskView):
                 fetch_data = self.database.fetch_all(fetch_num=1)
 
                 if request.args.get('detail', default=False, type=bool):
-                    response = "vesta ver. {}".format(__version__)+format_gpu_detail_info(fetch_data, term_width=self.term_width)
+                    response = "vesta ver. {}\n".format(__version__)+format_gpu_detail_info(fetch_data, term_width=self.term_width)
                 else:
-                    response = "vesta ver. {}".format(__version__)+format_gpu_info(fetch_data)
+                    response = "vesta ver. {}\n".format(__version__)+format_gpu_info(fetch_data)
             else:
                 fetch_data = self.database.fetch_page(page_num)
 
@@ -443,20 +443,19 @@ class HTTPServer(object):
         for hash_key, host in self.database.host_list.items():
             msg += "{} : {}\n".format(host["name"], "`Dead`" if host["status"] in STATUS_BAD else "Alive")
             if host["status"] in STATUS_OK:
-                fetch_data = self.database.fetch(host["name"], fetch_num=1)
+                fetch_data = self.database.fetch(host["name"], fetch_num=1, return_only_data=True)
 
-                for host_name, log_array in fetch_data.items():
-                    if log_array != []:
-                        data = log_array[0]
+                if fetch_data["data"] != []:
+                    data = log_array[0]
 
-                        for gpu, status in data.items():
-                            # pass the server's timestamp and host ip
-                            if gpu in ["timestamp", "ip_address"]:
-                                continue
+                    for gpu, status in data.items():
+                        # pass the server's timestamp and host ip
+                        if gpu in ["timestamp", "ip_address"]:
+                            continue
 
-                            if status["processes"] != []:
-                                msg += "    [{} ({})] {}\n".format(gpu, status["gpu_name"], status["timestamp"])
-                                msg += format_process_str(status["processes"], indent=True, indent_space_len=8)
+                        if status["processes"] != []:
+                            msg += "    [{} ({})] {}\n".format(gpu, status["gpu_name"], status["timestamp"])
+                            msg += format_process_str(status["processes"], indent=True, indent_space_len=8)
         msg = "```\n"
 
         resp = requests.post(SLACK_WEBHOOK, data=json.dumps({"text":msg}))
