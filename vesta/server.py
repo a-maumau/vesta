@@ -446,7 +446,7 @@ class HTTPServer(object):
                 fetch_data = self.database.fetch(host["name"], fetch_num=1, return_only_data=True)
 
                 if fetch_data["data"] != []:
-                    data = log_array[0]
+                    data = fetch_data["data"][-1]
 
                     for gpu, status in data.items():
                         # pass the server's timestamp and host ip
