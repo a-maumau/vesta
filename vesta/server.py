@@ -186,7 +186,8 @@ class RegisterView(FlaskView):
 
             self.database.add_host(hash_key, name, request.remote_addr)
 
-            print("### register: {}[{}] hash:{} ###".format(name, request.remote_addr, hash_key))
+            print("[ {} ]### register: {}[{}] hash:{} ###".format(datetime.now().strftime("%Y%m%d %H:%M:%S"), 
+                                                                  name, request.remote_addr, hash_key))
             send_uplink_detection(REGISTER_UPLINK_MSG, name)
 
             return json.dumps({"id":hash_key,
@@ -216,7 +217,6 @@ class UpdateView(FlaskView):
 
         if register_hash_code == TOKEN:
             if self.database.has_hash(hash_key):
-
                 _thread = threading.Thread(target=self.__add_to_database,
                                            args=(request.get_json(), hash_key, self.database.host_list[hash_key]["name"]))
                 _thread.daemon = True
@@ -233,10 +233,8 @@ class UpdateView(FlaskView):
             send_uplink_detection(UPDATE_UPLINK_MSG, host_name)
 
         self.database.add_data(hash_key, data)
-        self.database.host_list[hash_key]["status"] = SERVER_AVAILABLE
-        self.database.host_list[hash_key]["last_update"] = time.time()
 
-        print("### get update: {} ###".format(host_name))
+        print("[ {} ]### get update: {} ###".format(datetime.now().strftime("%Y%m%d %H:%M:%S"), host_name))
         self.__add_queue(self.database.host_list[hash_key]["name"])
 
     def __add_queue(self, updated_host):
@@ -356,9 +354,9 @@ class MainView(FlaskView):
                 fetch_data = self.database.fetch_all(fetch_num=1)
 
                 if request.args.get('detail', default=False, type=bool):
-                    response = "vesta ver. {}".format(__version__)+format_gpu_detail_info(fetch_data, term_width=self.term_width)
+                    response = "vesta ver. {}\n".format(__version__)+format_gpu_detail_info(fetch_data, term_width=self.term_width)
                 else:
-                    response = "vesta ver. {}".format(__version__)+format_gpu_info(fetch_data)
+                    response = "vesta ver. {}\n".format(__version__)+format_gpu_info(fetch_data)
             else:
                 fetch_data = self.database.fetch_page(page_num)
 
@@ -443,20 +441,19 @@ class HTTPServer(object):
         for hash_key, host in self.database.host_list.items():
             msg += "{} : {}\n".format(host["name"], "`Dead`" if host["status"] in STATUS_BAD else "Alive")
             if host["status"] in STATUS_OK:
-                fetch_data = self.database.fetch(host["name"], fetch_num=1)
+                fetch_data = self.database.fetch(host["name"], fetch_num=1, return_only_data=True)
 
-                for host_name, log_array in fetch_data.items():
-                    if log_array != []:
-                        data = log_array[0]
+                if fetch_data["data"] != []:
+                    data = fetch_data["data"][-1]
 
-                        for gpu, status in data.items():
-                            # pass the server's timestamp and host ip
-                            if gpu in ["timestamp", "ip_address"]:
-                                continue
+                    for gpu, status in data["gpu_data"].items():
+                        # pass the server's timestamp and host ip
+                        if gpu in ["timestamp", "ip_address"]:
+                            continue
 
-                            if status["processes"] != []:
-                                msg += "    [{} ({})] {}\n".format(gpu, status["gpu_name"], status["timestamp"])
-                                msg += format_process_str(status["processes"], indent=True, indent_space_len=8)
+                        if status["processes"] != []:
+                            msg += "    [{} ({})] {}\n".format(gpu, status["gpu_name"], status["timestamp"])
+                            msg += format_process_str(status["processes"], add_before="        ")
         msg = "```\n"
 
         resp = requests.post(SLACK_WEBHOOK, data=json.dumps({"text":msg}))
@@ -479,7 +476,7 @@ class HTTPServer(object):
             time.sleep(sleep_time)
 
             for hash_key, host in self.database.host_list.items():
-                time_diff = time.time() - host["last_update"]
+                time_diff = time.time() - host["last_touch"]
                 if time_diff > down_th_sec and not host["status"] in STATUS_BAD:
                     self.send_down_detection(host["name"], down_th_sec)
                     self.database.host_list[hash_key]["status"] = SERVER_DOWN

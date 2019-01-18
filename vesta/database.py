@@ -18,17 +18,25 @@ class DataBase(object):
     """
     
     def __init__(self, database_path, sort_by="ip"):
-        # because of thread safe, it won't allow us to open in advance
-        #self.con = sqlite3.connect(database_path)
-        #self.cur = self.con.cursor()
-
         self.database_path = database_path
+
+        # host_list will be like
+        """
+        {   "host1":{
+                "name":"host1",                 # str
+                "ip_address":"127.0.0.2",       # str
+                "last_update":0,                # float
+                "last_touch":0,                 # float, use for detecting down
+                "status":SERVER_WAITING_UPLINK  # str
+            },
+        }
+        """
         self.host_list = {}
         self.name_to_hash_table = {}
 
         # sort for paging, this is not appropriate way if hosts are large number
         # host list is like {"host_hash":{"name":"host1". "ip_address":"192.168.0.1", ...}, {...}, }
-        if sort_by == "ip":
+        if sort_by.lower() in ["ip", "ipaddress", "ip_address", "address"]:
             self.sort_func = lambda d: list(map(lambda t: t[0], sorted(d.items(), key=lambda t: t[1]["ip_address"])))
         else:
             self.sort_func = lambda d: list(map(lambda t: t[0], sorted(d.items(), key=lambda t: t[1]["name"])))
@@ -43,7 +51,7 @@ class DataBase(object):
             result = cur.fetchall()
             for data in result:
                 #{hash key: host_name}
-                self.host_list[data[0]] = {"name":data[1], "ip_address":data[2], "last_update":time.time(), "status":SERVER_WAITING_UPLINK}
+                self.host_list[data[0]] = {"name":data[1], "ip_address":data[2], "last_update":0, "last_touch":0, "status":SERVER_WAITING_UPLINK}
                 self.name_to_hash_table[data[1]] = data[0]
             
             print("#### database ####")
@@ -258,26 +266,38 @@ class DataBase(object):
             return False
 
     def has_host(self, host_name):
-        if host_name in list(map(lambda x: x["name"], self.host_list.values())) or host_name is "machines":
+        if host_name in self.name_to_hash_table:
             return True
         else:
             return False
 
     def add_host(self, host_id, host_name, host_ip):
-        self.host_list[host_id] = {"name":host_name, "ip_address":host_ip, "last_update":time.time(), "status":SERVER_AVAILABLE}
-        self.name_to_hash_table[host_name]= host_id
+        tn = time.time()
+        self.host_list[host_id] = {"name":host_name, "ip_address":host_ip, "last_update":tn, "last_touch":tn, "status":SERVER_AVAILABLE}
+        self.name_to_hash_table[host_name] = host_id
         self.host_order = self.sort_func(self.host_list)
         self.create_new_host(host_id, host_name, host_ip)
 
     def add_data(self, host_id, data):
-        con = sqlite3.connect(self.database_path)
-        cur = con.cursor()
+        tn = time.time()
+        if tn - self.host_list[host_id]["last_update"] >= SAVE_INTERVAL:
 
-        cur.execute("insert into {} values(:timestamp, :data)".format(self.host_list[host_id]["name"]),
-                    {"timestamp":"{}".format(int(datetime.now().strftime("%Y%m%d%H%M%S"))), "data":self.compress_data(data)})
+            con = sqlite3.connect(self.database_path)
+            cur = con.cursor()
 
-        con.commit()
-        con.close()
+            cur.execute("insert into {} values(:timestamp, :data)".format(self.host_list[host_id]["name"]),
+                        {"timestamp":int(datetime.now().strftime("%Y%m%d%H%M%S")), "data":self.compress_data(data)})
+
+            con.commit()
+            con.close()
+
+        self.host_list[host_id]["status"] = SERVER_AVAILABLE
+        self.host_list[host_id]["last_update"] = tn
+        self.host_list[host_id]["last_touch"] = tn
+
+    def touch_data(self, host_id):
+        self.host_list[host_id]["last_touch"] = time.time()
+
 
     def compress_data(self, data):
         return bz2.compress(pickle.dumps(data, pickle.HIGHEST_PROTOCOL))
