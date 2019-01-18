@@ -186,7 +186,8 @@ class RegisterView(FlaskView):
 
             self.database.add_host(hash_key, name, request.remote_addr)
 
-            print("### register: {}[{}] hash:{} ###".format(name, request.remote_addr, hash_key))
+            print("[ {} ]### register: {}[{}] hash:{} ###".format(datetime.now().strftime("%Y%m%d %H:%M:%S"), 
+                                                                  name, request.remote_addr, hash_key))
             send_uplink_detection(REGISTER_UPLINK_MSG, name)
 
             return json.dumps({"id":hash_key,
@@ -216,7 +217,6 @@ class UpdateView(FlaskView):
 
         if register_hash_code == TOKEN:
             if self.database.has_hash(hash_key):
-
                 _thread = threading.Thread(target=self.__add_to_database,
                                            args=(request.get_json(), hash_key, self.database.host_list[hash_key]["name"]))
                 _thread.daemon = True
@@ -233,10 +233,8 @@ class UpdateView(FlaskView):
             send_uplink_detection(UPDATE_UPLINK_MSG, host_name)
 
         self.database.add_data(hash_key, data)
-        self.database.host_list[hash_key]["status"] = SERVER_AVAILABLE
-        self.database.host_list[hash_key]["last_update"] = time.time()
 
-        print("### get update: {} ###".format(host_name))
+        print("[ {} ]### get update: {} ###".format(datetime.now().strftime("%Y%m%d %H:%M:%S"), host_name))
         self.__add_queue(self.database.host_list[hash_key]["name"])
 
     def __add_queue(self, updated_host):
@@ -478,7 +476,7 @@ class HTTPServer(object):
             time.sleep(sleep_time)
 
             for hash_key, host in self.database.host_list.items():
-                time_diff = time.time() - host["last_update"]
+                time_diff = time.time() - host["last_touch"]
                 if time_diff > down_th_sec and not host["status"] in STATUS_BAD:
                     self.send_down_detection(host["name"], down_th_sec)
                     self.database.host_list[hash_key]["status"] = SERVER_DOWN
