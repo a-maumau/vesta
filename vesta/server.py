@@ -448,14 +448,14 @@ class HTTPServer(object):
                 if fetch_data["data"] != []:
                     data = fetch_data["data"][-1]
 
-                    for gpu, status in data.items():
+                    for gpu, status in data["gpu_data"].items():
                         # pass the server's timestamp and host ip
                         if gpu in ["timestamp", "ip_address"]:
                             continue
 
                         if status["processes"] != []:
                             msg += "    [{} ({})] {}\n".format(gpu, status["gpu_name"], status["timestamp"])
-                            msg += format_process_str(status["processes"], indent=True, indent_space_len=8)
+                            msg += format_process_str(status["processes"], add_before="        ")
         msg = "```\n"
 
         resp = requests.post(SLACK_WEBHOOK, data=json.dumps({"text":msg}))
