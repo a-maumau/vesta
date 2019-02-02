@@ -7,8 +7,6 @@ PORT_NUM = 8080
 # whatever you want, actually it's doing nothing now.
 TOKEN = '0000'
 
-# sort type, "ip" or "name"
-SORT_BY = "ip"
 # how many information to read in each page
 PAGE_PER_HOST_NUM = 8
 

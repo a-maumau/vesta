@@ -95,7 +95,7 @@ small#vesta_ver{
 
 .collapsible.bad_status {
     cursor: default;
-    background-color: #ddd;
+    background-color: #ccc;
     box-shadow: none;
 }
 .collapsible.bad_satus:hover {
@@ -108,7 +108,7 @@ small#vesta_ver{
     max-height: 0;
     overflow: hidden;
     transition: max-height 0.2s ease-out;
-    background-color: #f9f9f9;
+    background-color: #f6f6f6;
 }
 
 .summary_graph_wrapper {
@@ -122,6 +122,10 @@ small#vesta_ver{
 .host_summary_graph{
     max-width: 33.3%;
     max-height: 100%;
+}
+
+.gpu_entry{
+    padding-top: 15px;
 }
 
 .gpu_entry:not(.last_entry) {

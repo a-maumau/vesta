@@ -25,13 +25,12 @@ from .env import *
 from .settings import *
 from .path_util import *
 from .format_str import *
+from .terminal_color import *
 
 # need some patch
 # https://github.com/miguelgrinberg/Flask-SocketIO/issues/65
 from gevent import monkey
 monkey.patch_all()
-
-WS_RECEIVE_TIMEOUT = 2.0
 
 def create_response_403(info_msg="forbidden"):
     return json.dumps({"status":"ERROR", "status_code":403, "info":"{}".format(info_msg)})
@@ -186,8 +185,10 @@ class RegisterView(FlaskView):
 
             self.database.add_host(hash_key, name, request.remote_addr)
 
-            print("[ {} ]### register: {}[{}] hash:{} ###".format(datetime.now().strftime("%Y%m%d %H:%M:%S"), 
-                                                                  name, request.remote_addr, hash_key))
+            print("[ {} ] {}{}register: {}[{}] hash:{}{}{}".format(datetime.now().strftime("%Y%m%d %H:%M:%S"),
+                                                                   terminal_bg.BLUE, terminal_fg.WHITE, 
+                                                                   name, request.remote_addr, hash_key,
+                                                                   terminal_fg.END, terminal_bg.END))
             send_uplink_detection(REGISTER_UPLINK_MSG, name)
 
             return json.dumps({"id":hash_key,
@@ -231,10 +232,14 @@ class UpdateView(FlaskView):
     def __add_to_database(self, data, hash_key, host_name):
         if self.database.host_list[hash_key]["status"] in STATUS_BAD:
             send_uplink_detection(UPDATE_UPLINK_MSG, host_name)
+            print("[ {} ] {}{}UP    : {}{}{}".format(datetime.now().strftime("%Y%m%d %H:%M:%S"),
+                                                     terminal_bg.GREEN, terminal_fg.BLACK,
+                                                     host_name,
+                                                     terminal_bg.END, terminal_fg.END))
+        else:
+            print("[ {} ] UPDATE: {}".format(datetime.now().strftime("%Y%m%d %H:%M:%S"), host_name))
 
         self.database.add_data(hash_key, data)
-
-        print("[ {} ]### get update: {} ###".format(datetime.now().strftime("%Y%m%d %H:%M:%S"), host_name))
         self.__add_queue(self.database.host_list[hash_key]["name"])
 
     def __add_queue(self, updated_host):
@@ -250,6 +255,16 @@ class UpdateView(FlaskView):
 
         return update_data
 
+    # database store the data only in specific interval,
+    # so latest is stored in cache data
+    def fetch_cache_update(self, queue):
+        update_data = {}
+
+        for host_name in queue:
+            update_data[host_name] = self.database.fetch_cache(host_name, return_only_data=True)
+
+        return update_data
+
     @route('/client/ws', methods=["get"])
     def client_get_update(self):
         if request.environ.get('wsgi.websocket'):
@@ -259,13 +274,15 @@ class UpdateView(FlaskView):
             self.client_update[client_ip] = {"page": 1, "queue":set()}
 
             while True:
-                # wait 1sec for client 
+                # wait 1sec for client,
+                # and check if new page number is requested or not
                 page_num = None
                 with Timeout(WS_RECEIVE_TIMEOUT, False):
                     page_num = ws.receive()
 
                 if page_num is None:
                     pass
+                # if new page number was requested
                 else:
                     page_num = int(page_num)
                     if page_num < 1:
@@ -288,7 +305,7 @@ class UpdateView(FlaskView):
 
                     break
                 else:
-                    update_data = {"update":self.fetch_update(self.client_update[client_ip]["queue"]),
+                    update_data = {"update":self.fetch_cache_update(self.client_update[client_ip]["queue"]),
                                    "page_name_list":self.database.get_page_host_names(self.client_update[client_ip]["page"]),
                                    "total_page_num":self.database.total_page}
 
@@ -439,7 +456,7 @@ class HTTPServer(object):
         msg = "### Server Statuses ###\n```\n"
 
         for hash_key, host in self.database.host_list.items():
-            msg += "{} : {}\n".format(host["name"], "`Dead`" if host["status"] in STATUS_BAD else "Alive")
+            msg += "{} : {}\n".format(host["name"], "DEAD" if host["status"] in STATUS_BAD else "Alive")
             if host["status"] in STATUS_OK:
                 fetch_data = self.database.fetch(host["name"], fetch_num=1, return_only_data=True)
 
@@ -454,7 +471,7 @@ class HTTPServer(object):
                         if status["processes"] != []:
                             msg += "    [{} ({})] {}\n".format(gpu, status["gpu_name"], status["timestamp"])
                             msg += format_process_str(status["processes"], add_before="        ")
-        msg = "```\n"
+        msg += "```\n"
 
         resp = requests.post(SLACK_WEBHOOK, data=json.dumps({"text":msg}))
         
@@ -480,3 +497,7 @@ class HTTPServer(object):
                 if time_diff > down_th_sec and not host["status"] in STATUS_BAD:
                     self.send_down_detection(host["name"], down_th_sec)
                     self.database.host_list[hash_key]["status"] = SERVER_DOWN
+                    print("[ {} ] {}{}DOWN  : {}{}{}".format(datetime.now().strftime("%Y%m%d %H:%M:%S"),
+                                                                     terminal_bg.RED, terminal_fg.WHITE, 
+                                                                     host["name"],
+                                                                     terminal_fg.END, terminal_bg.END))

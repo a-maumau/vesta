@@ -51,7 +51,7 @@ class DataBase(object):
             result = cur.fetchall()
             for data in result:
                 #{hash key: host_name}
-                self.host_list[data[0]] = {"name":data[1], "ip_address":data[2], "last_update":0, "last_touch":0, "status":SERVER_WAITING_UPLINK}
+                self.host_list[data[0]] = {"name":data[1], "ip_address":data[2], "last_update":0, "last_touch":0, "status":SERVER_WAITING_UPLINK, "cache_data":None}
                 self.name_to_hash_table[data[1]] = data[0]
             
             print("#### database ####")
@@ -148,12 +148,14 @@ class DataBase(object):
 
                 result = cur.fetchall()
 
+                host_id = self.name_to_hash_table[host_name]
+
                 response[host_name] = {"data":[],
-                                       "ip_address":self.host_list[self.name_to_hash_table[host_name]]["ip_address"],
-                                       "status":self.host_list[self.name_to_hash_table[host_name]]["status"]}
+                                       "ip_address":self.host_list[host_id]["ip_address"],
+                                       "status":self.host_list[host_id]["status"]}
 
                 if len(result) != 0:
-                    if self.host_list[self.name_to_hash_table[host_name]]["status"] in STATUS_BAD:
+                    if self.host_list[host_id]["status"] in STATUS_BAD:
                         response[host_name]["data"].append({"gpu_data":{}, "timestamp":self.format_timestamp(result[0][0])})
                     else:
                         for data in result[::-1]:
@@ -211,6 +213,8 @@ class DataBase(object):
         if host_name not in self.name_to_hash_table:
             return None
 
+        host_id = self.name_to_hash_table[host_name]
+
         response = {}
 
         con = sqlite3.connect(self.database_path)
@@ -222,11 +226,11 @@ class DataBase(object):
         result = cur.fetchall()
 
         response[host_name] = {"data":[],
-                               "ip_address":self.host_list[self.name_to_hash_table[host_name]]["ip_address"],
-                               "status":self.host_list[self.name_to_hash_table[host_name]]["status"]}
+                               "ip_address":self.host_list[host_id]["ip_address"],
+                               "status":self.host_list[host_id]["status"]}
 
         if len(result) != 0:
-            if self.host_list[self.name_to_hash_table[host_name]]["status"] in STATUS_BAD:
+            if self.host_list[host_id]["status"] in STATUS_BAD:
                 response[host_name]["data"].append({"gpu_data":{}, "timestamp":self.format_timestamp(result[0][0])})
             else:
                 for data in result[::-1]:
@@ -253,6 +257,41 @@ class DataBase(object):
             response[host_name]["data"].append({"gpu_data":{}, "timestamp":"no entry received."})
 
         con.close()
+
+        if return_only_data:
+            return response[host_name]
+
+        return response
+
+    def fetch_cache(self, host_name, return_only_data=False):
+        """
+            return a host's gpu information data with dictionary.
+
+            args:
+                host_name: str
+                fetch_num: int
+
+            return: dict
+                it will return cached data for host_name.
+        """
+        if host_name not in self.name_to_hash_table:
+            return None
+
+        host_id = self.name_to_hash_table[host_name]
+
+        response = {}
+        response[host_name] = {"data":[],
+                               "ip_address":self.host_list[host_id]["ip_address"],
+                               "status":self.host_list[host_id]["status"]}
+
+        if self.host_list[host_id]["cache_data"] is None:
+            response[host_name]["data"].append({"gpu_data":{}, "timestamp":"no entry received."})
+        else:
+            if self.host_list[host_id]["status"] in STATUS_BAD:
+                response[host_name]["data"].append({"gpu_data":{}, "timestamp":self.format_timestamp(self.host_list[host_id]["last_touch"])})
+            else:
+                response[host_name]["data"].append({"gpu_data":self.host_list[host_id]["cache_data"]["data"],
+                                                    "timestamp":self.format_timestamp(self.host_list[host_id]["cache_data"]["timestamp"])})
 
         if return_only_data:
             return response[host_name]
@@ -291,8 +330,12 @@ class DataBase(object):
             con.commit()
             con.close()
 
+            self.host_list[host_id]["last_update"] = tn
+
+        else:
+            self.host_list[host_id]["cache_data"] = {"timestamp":int(datetime.now().strftime("%Y%m%d%H%M%S")), "data":data}
+
         self.host_list[host_id]["status"] = SERVER_AVAILABLE
-        self.host_list[host_id]["last_update"] = tn
         self.host_list[host_id]["last_touch"] = tn
 
     def touch_data(self, host_id):
