@@ -29,25 +29,46 @@ def truncate_str(text, length=25, fill_char=None, ellipsis="…", align_right=Fa
     else:
         return text
 
-def align_str(text, fill_char=" ", margin_char=" ", margin=(1,1), length=60, start=4, ellipsis="…", new_line=True):
+def align_str(text, fill_char=" ", margin_char=" ", start=4, margin=(0,0), length=60, ellipsis="…", new_line=True):
     """
+      args:
+        start: int
+          set start point of magin or text.
+          first char is 0
+
         <------------- length ----------------->
-                   start   margin_char   fill_char
-                    /       /             /
-                   v       v             v
+                 start    margin_char   fill_char
+                /        /             /
+               v        v             v
         #######    text      ###################
                <-->    <---->  
                   margin     
     """
 
-    margin_start_pos = max(0, start-margin[0])
+    align_text = ""
+
+    margin_start_pos = max(0, start)
+    align_text += fill_char*margin_start_pos
+    align_text += margin_char*margin[0]
 
     # truncate text if it reached to length
-    if len(text)+margin_start_pos >= length:
-        text = text[margin_start_pos:length-len(ellipsis)-1]+ellipsis
+    if len(text)+margin_start_pos > length:
+        align_text += text[margin_start_pos:length-len(ellipsis)]+ellipsis
+    else:
+        align_text += text
 
-    text_end_pos = (margin_start_pos+1)+len(text)
+    remaining_chars = length-len(align_text)
+
+    remaining_chars -= margin[1]
+    align_text += margin_char*max(min(margin[1] ,remaining_chars),0)
+
+    align_text += fill_char*max(0, remaining_chars)
+
+    text_end_pos = (margin_start_pos+1)+len(text) 
     suf_margin_len = min(margin[1], length-text_end_pos)
+
+    if new_line:
+        align_text += "\n"
 
     arg = {
             "pre_fill_str"   : fill_char*(margin_start_pos),
@@ -56,9 +77,10 @@ def align_str(text, fill_char=" ", margin_char=" ", margin=(1,1), length=60, sta
             "suf_margin_str" : margin_char*suf_margin_len,
             "suf_fill_str"   : fill_char*max(0, length-suf_margin_len-text_end_pos),
             "new_line"       : "\n" if new_line else ""
-           }
+          }
 
-    return "{pre_fill_str}{pre_margin_str}{text}{suf_margin_str}{suf_fill_str}{new_line}".format(**arg)
+    #return "{pre_fill_str}{pre_margin_str}{text}{suf_margin_str}{suf_fill_str}{new_line}".format(**arg)
+    return align_text
 
 def create_bar_str(current, total, msg="", fill_char="/", empty_char=" ", left_bracket="[", right_bracket="]",
                    length=60, new_line=True):
@@ -108,24 +130,26 @@ def format_process_str(process_list, length=80, cmd_len=25, add_before="", add_a
 
     for index, process_data in enumerate(process_list):
         if index == len(process_list)-1:
-            process_str += "{}{}{}{}".format(add_before, truncate_str("└── {} {:6d}MiB".format(
+            process_str += "{}{}{}{}".format(add_before, truncate_str("└── {} {:6d}MiB {}".format(
                                                                       truncate_str(process_data['name'], 
                                                                                    length=cmd_len,
                                                                                    fill_char=" ",
                                                                                    ellipsis="…"),
-                                                                      int(process_data['used_memory'])),
+                                                                      int(process_data['used_memory']),
+                                                                      process_data['user']),
                                                                       length=length,
                                                                       fill_char=" ",
                                                                       ellipsis="…"),
                             add_after,
                             "\n" if new_line else "")
         else:
-            process_str += "{}{}{}{}".format(add_before, truncate_str("├── {} {:6d}MiB".format(
+            process_str += "{}{}{}{}".format(add_before, truncate_str("├── {} {:6d}MiB {}".format(
                                                                       truncate_str(process_data['name'], 
                                                                                    length=cmd_len,
                                                                                    fill_char=" ",
                                                                                    ellipsis="…"),
-                                                                      int(process_data['used_memory'])),
+                                                                      int(process_data['used_memory']),
+                                                                      process_data['user']),
                                                                       length=length,
                                                                       fill_char=" ",
                                                                       ellipsis="…"),
@@ -195,9 +219,9 @@ def format_gpu_detail_info(fetched_data, term_width=80):
             data = host_info["data"][0]
 
             info += "\n"+align_str(host_name+" :: {}".format(host_info["ip_address"]),
-                                   fill_char="#", margin_char=" ", margin=(1,1), length=term_width, start=4)
+                                   fill_char="#", margin_char=" ", start=4, margin=(1,1), length=term_width)
             info += align_str("last update: {}".format(data["timestamp"]),
-                              fill_char=" ", margin_char=" ", margin=(0,0), length=term_width, start=2)
+                              fill_char=" ", margin_char=" ", start=2, margin=(0,0), length=term_width)
             info += hr
 
             """ ┌　┐　┘　└ ─ │
@@ -230,9 +254,9 @@ def format_gpu_detail_info(fetched_data, term_width=80):
 
         else:
             info += "\n"+align_str(host_name+" :: {}".format(host_info["ip_address"]),
-                                   fill_char="#", margin_char=" ", margin=(1,1), length=term_width, start=4)
+                                   fill_char="#", margin_char=" ", start=4, margin=(1,1), length=term_width)
             info += align_str("last update: {}".format(host_info["data"][0]["timestamp"]),
-                              fill_char=" ", margin_char=" ", margin=(2,0), length=term_width, start=0)
+                              fill_char=" ", margin_char=" ", start=0, margin=(2,0), length=term_width)
             info += hr
 
             info += box_ul
