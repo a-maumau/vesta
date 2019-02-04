@@ -21,6 +21,7 @@ from geventwebsocket.handler import WebSocketHandler
 
 from .__version__ import __version__
 from .database import DataBase
+from .slack_bot_manager import SlackBot
 from .env import *
 from .settings import *
 from .path_util import *
@@ -62,8 +63,9 @@ def send_uplink_detection(msg, host_name):
             "data":[
                 {
                     'gpu_data':{
-                        'gpu:0':{'available_memory': '10934',
-                        'device_num': '0',
+                        'gpu:0':{
+                            'available_memory': '10934',
+                            'device_num': '0',
                             'gpu_name': 'GeForce GTX 1080 Ti',
                             'gpu_volatile': '0',
                             'processes': [
@@ -143,7 +145,7 @@ class StatesView(FlaskView):
 
             else:
                 fetch_num = request.args.get('fetch_num', default=1, type=int)
-                fetch_data = self.database.fetch(host_name, fetch_num=fetch_num)
+                fetch_data = self.database.fetch(host_name, fetch_num=fetch_num, ignore_down_state=True)
 
                 return json.dumps(fetch_data)
         else:
@@ -425,6 +427,8 @@ class HTTPServer(object):
 
         self.wsgi_server = pywsgi.WSGIServer((self.bind_host, self.bind_port), self.app, handler_class=WebSocketHandler)
 
+        self.slack_bot = SlackBot(SLACK_BOT_TOKEN, self.database)
+
         if quiet:
             import logging
             log = logging.getLogger("werkzeug")
@@ -436,11 +440,14 @@ class HTTPServer(object):
         # I will delete this part next release
         #self.main_thread = threading.Thread(target=self.app.run, args=(self.bind_host, self.bind_port), kwargs={"ssl_context":ssl_context})
         self.ws_thread = threading.Thread(target=self.wsgi_server.serve_forever)
+        self.bot_thread = threading.Thread(target=self.slack_bot.start)
 
         #self.main_thread.daemon = True
         #self.main_thread.start()
         self.ws_thread.daemon = True
         self.ws_thread.start()
+        self.bot_thread.daemon = True
+        self.bot_thread.start()
 
     def send_down_detection(self, host_name, down_time):
         msg = HOST_DOWN_MSG.format(host_name, down_time)
@@ -453,10 +460,12 @@ class HTTPServer(object):
             print(e)
 
     def send_server_status(self):
-        msg = "### Server Statuses ###\n```\n"
+        msg = "### Server Statuses ###\n"
 
-        for hash_key, host in self.database.host_list.items():
-            msg += "{} : {}\n".format(host["name"], "DEAD" if host["status"] in STATUS_BAD else "Alive")
+        for host_name in self.database.host_order:
+            host = self.database.host_list[host_name]
+
+            msg += "{} : {}\n".format(truncate_str(host["name"], length=16, fill_char=" "), "DEAD" if host["status"] in STATUS_BAD else "Alive")
             if host["status"] in STATUS_OK:
                 fetch_data = self.database.fetch(host["name"], fetch_num=1, return_only_data=True)
 
@@ -478,7 +487,7 @@ class HTTPServer(object):
         if resp.history != [] and resp.history != 200:
             print("could not send message to Slack.")
 
-    def watch_and_sleep(self, sleep_time=1, down_th_sec=120):
+    def watch_and_sleep(self, sleep_time=1, down_th_sec=60):
         """
             down_th_sec should be set larger number than a interval
             what you are going to send from the host.

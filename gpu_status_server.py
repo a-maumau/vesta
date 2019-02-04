@@ -21,7 +21,7 @@ if __name__ == '__main__':
 
     # args for waching part
     parser.add_argument('--sleep_time', type=int, default=5, help='in sec.')
-    parser.add_argument('--down_th', type=int, default=300, help='in sec.')
+    parser.add_argument('--down_th', type=int, default=60, help='in sec.')
 
     parser.add_argument('-quiet', action="store_true", default=False, help='only showing the log of loss and validation.')
 
