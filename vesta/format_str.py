@@ -70,16 +70,6 @@ def align_str(text, fill_char=" ", margin_char=" ", start=4, margin=(0,0), lengt
     if new_line:
         align_text += "\n"
 
-    arg = {
-            "pre_fill_str"   : fill_char*(margin_start_pos),
-            "pre_margin_str" : margin_char*margin[0],
-            "text"           : text,
-            "suf_margin_str" : margin_char*suf_margin_len,
-            "suf_fill_str"   : fill_char*max(0, length-suf_margin_len-text_end_pos),
-            "new_line"       : "\n" if new_line else ""
-          }
-
-    #return "{pre_fill_str}{pre_margin_str}{text}{suf_margin_str}{suf_fill_str}{new_line}".format(**arg)
     return align_text
 
 def create_bar_str(current, total, msg="", fill_char="/", empty_char=" ", left_bracket="[", right_bracket="]",

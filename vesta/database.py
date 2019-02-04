@@ -17,7 +17,7 @@ class DataBase(object):
         takes care of sqlite3 database
     """
     
-    def __init__(self, database_path, sort_by="ip"):
+    def __init__(self, database_path):
         self.database_path = database_path
 
         # host_list will be like
@@ -36,7 +36,7 @@ class DataBase(object):
 
         # sort for paging, this is not appropriate way if hosts are large number
         # host list is like {"host_hash":{"name":"host1". "ip_address":"192.168.0.1", ...}, {...}, }
-        if sort_by.lower() in ["ip", "ipaddress", "ip_address", "address"]:
+        if SORT_BY.lower() in ["ip", "ipaddress", "ip_address", "address"]:
             self.sort_func = lambda d: list(map(lambda t: t[0], sorted(d.items(), key=lambda t: t[1]["ip_address"])))
         else:
             self.sort_func = lambda d: list(map(lambda t: t[0], sorted(d.items(), key=lambda t: t[1]["name"])))
@@ -199,7 +199,7 @@ class DataBase(object):
 
         return fetch_data
 
-    def fetch(self, host_name, fetch_num=1, return_only_data=False):
+    def fetch(self, host_name, fetch_num=1, return_only_data=False, ignore_down_state=False):
         """
             return a host's gpu information data with dictionary.
 
@@ -230,7 +230,7 @@ class DataBase(object):
                                "status":self.host_list[host_id]["status"]}
 
         if len(result) != 0:
-            if self.host_list[host_id]["status"] in STATUS_BAD:
+            if self.host_list[host_id]["status"] in STATUS_BAD and not ignore_down_state:
                 response[host_name]["data"].append({"gpu_data":{}, "timestamp":self.format_timestamp(result[0][0])})
             else:
                 for data in result[::-1]:
