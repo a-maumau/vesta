@@ -17,15 +17,17 @@ PAGE_DESCRIPTION = "awsome description"
 SLACK_WEBHOOK = "https://hooks.slack.com/services/<your web hook>"
 # bot token
 SLACK_BOT_TOKEN = "your BOT token"
+# used in server::send_hosts_statuses()
+SLACK_BOT_POST_CHANNEL = "your channel"
 
 # this will filter the networks
 # it will be used in re.search, so you can use regular expression
 VALID_NETWORK = "127.0.0.1"
 
 # you can use python schedule module to schedule the announcement of somethin
-# in this case, it will use the function self.send_servere_status for every day at00:00 
+# in this case, it will use the function self.send_hosts_statuses for every day at00:00 
 # must be a iteratable object
-SCHEDULE_FUNCTION = ['schedule.every().day.at("00:00").do(self.send_server_status)']
+SCHEDULE_FUNCTION = ['schedule.every().day.at("00:00").do(self.send_hosts_statuses, "SCHEDULED_STATUS_REPORT")']
 
 # notification message ########################################
 # if you use {} it will be filled with host name
@@ -44,7 +46,7 @@ KEYWORD_CMD_PREFIX = ""
 # if you set to "" i will be disabled
 # show all host names
 KEYWORD_PRINT_HOSTS = "HOSTS"
-# same result as server::send_server_status()
+# same result as server::send_hosts_statuses()
 KEYWORD_PRINT_ALL_HOSTS = "ALL"
 # same result as command line using ?term=true
 KEYWORD_PRINT_ALL_HOSTS_CMD = "ALL_cmd"

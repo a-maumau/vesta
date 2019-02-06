@@ -459,8 +459,8 @@ class HTTPServer(object):
         except Exception as e:
             print(e)
 
-    def send_server_status(self):
-        msg = "### Server Statuses ###\n"
+    def send_hosts_statuses(self, msg_title="ALL_HOSTS_STATUSES"):
+        msg = ""
 
         for host_name in self.database.host_order:
             host = self.database.host_list[host_name]
@@ -480,12 +480,9 @@ class HTTPServer(object):
                         if status["processes"] != []:
                             msg += "    [{} ({})] {}\n".format(gpu, status["gpu_name"], status["timestamp"])
                             msg += format_process_str(status["processes"], add_before="        ")
-        msg += "```\n"
 
-        resp = requests.post(SLACK_WEBHOOK, data=json.dumps({"text":msg}))
-        
-        if resp.history != [] and resp.history != 200:
-            print("could not send message to Slack.")
+        if len(msg) > 0:
+            self.slack_bot.send_snippet(msg, SLACK_BOT_POST_CHANNEL, msg_title, "statuses")
 
     def watch_and_sleep(self, sleep_time=1, down_th_sec=60):
         """
