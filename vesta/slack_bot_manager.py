@@ -42,6 +42,7 @@ class SlackBot(object):
 
                 msg = ""
 
+                # print all hosts status
                 if req_host in KEYWORD_PRINT_ALL_HOSTS and valid_key_pah:
                     for host_name in self.database.host_order:
                         host = self.database.host_list[host_name]
@@ -61,7 +62,8 @@ class SlackBot(object):
                                     if status["processes"] != []:
                                         msg += "    [{} ({})] {}\n".format(gpu, status["gpu_name"], status["timestamp"])
                                         msg += format_process_str(status["processes"], add_before="        ")
-                    msg = io.StringIO(msg)
+                    
+                    self.send_snippet(msg, req_channel, req_host, req_host)
 
                 # print one host
                 elif self.database.has_host(req_host):
@@ -84,46 +86,61 @@ class SlackBot(object):
                                 msg += "    [{} ({})] {}\n".format(gpu, status["gpu_name"], status["timestamp"])
                                 msg += format_process_str(status["processes"], add_before="        ")
 
-                    msg = io.StringIO(msg)
+                    self.send_snippet(msg, req_channel, req_host, req_host)
 
+                # print all hosts status in command line printing style
                 elif req_host in KEYWORD_PRINT_ALL_HOSTS_CMD and valid_key_pahc:
                     fetch_data = self.database.fetch_all(fetch_num=1)
 
                     msg += "vesta ver. {}\n".format(__version__)+format_gpu_info(fetch_data)
-                    msg = io.StringIO(msg)
+                    
+                    self.send_snippet(msg, req_channel, req_host, req_host)
 
+                # print all hosts status in detail
                 elif req_host in KEYWORD_PRINT_ALL_HOSTS_DETAIL and valid_key_pahd:
                     fetch_data = self.database.fetch_all(fetch_num=1)
 
                     msg += "vesta ver. {}\n".format(__version__)+format_gpu_detail_info(fetch_data, term_width=self.term_width)
-                    msg = io.StringIO(msg)
+                    
+                    self.send_snippet(msg, req_channel, req_host, req_host)
 
+                # print all watching hosts
                 elif req_host in KEYWORD_PRINT_HOSTS and valid_key_ph:
                     for host_hash in self.database.host_order:
                         msg += "{}\n".format(self.database.host_list[host_hash]["name"])
 
-                    msg = io.StringIO(msg)
+                    self.send_snippet(msg, req_channel, req_host, req_host)
 
+                # print command
                 elif req_host in KEYWORD_PRINT_HELP and valid_key_help:
                     msg = ""
-                    msg += "`{}{}`: show all host which is watched by server.\n".format(KEYWORD_CMD_PREFIX, KEYWORD_PRINT_HOSTS)
-                    msg += "`{}{}`: show all host statuses.\n".format(KEYWORD_CMD_PREFIX, KEYWORD_PRINT_ALL_HOSTS)
-                    msg += "`{}{}`: show all host statuses in style of command line.\n".format(KEYWORD_CMD_PREFIX, KEYWORD_PRINT_ALL_HOSTS_CMD)
-                    msg += "`{}{}`: show all host statuses in detail.\n".format(KEYWORD_CMD_PREFIX, KEYWORD_PRINT_ALL_HOSTS_DETAIL)
-                    msg += "`{}<host_name>`: show host status in detail.\n".format(KEYWORD_CMD_PREFIX)
-                    msg += "`{}{}`: show this message.".format(KEYWORD_CMD_PREFIX, KEYWORD_PRINT_HELP)
+                    msg += ("`{}{}`: show all hosts which is watched by the server.\n".format(KEYWORD_CMD_PREFIX, KEYWORD_PRINT_HOSTS) if valid_key_ph else "")
+                    msg += ("`{}{}`: show all hosts statuses.\n".format(KEYWORD_CMD_PREFIX, KEYWORD_PRINT_ALL_HOSTS) if valid_key_pah else "")
+                    msg += ("`{}{}`: show all hosts statuses in style of command line.\n".format(KEYWORD_CMD_PREFIX, KEYWORD_PRINT_ALL_HOSTS_CMD) if valid_key_pahc else "")
+                    msg += ("`{}{}`: show all hosts statuses in detail.\n".format(KEYWORD_CMD_PREFIX, KEYWORD_PRINT_ALL_HOSTS_DETAIL) if valid_key_pahd else "")
+                    msg += ("`{}<host_name>`: show host statuses in detail.\n".format(KEYWORD_CMD_PREFIX))
+                    msg += ("`{}{}`: show this message.".format(KEYWORD_CMD_PREFIX, KEYWORD_PRINT_HELP) if valid_key_help else "")
+
                     self.client.rtm_send_message(req_channel, msg)
 
-                if isinstance(msg, io.StringIO):
-                    self.client.api_call("files.upload", channels=req_channel, file=msg, filename='{}.txt'.format(req_host), title="response: {}".format(req_host))
-                    msg.close()
+        except Exception as e:
+            print_error(e)
+
+    def send_snippet(self, msg, req_channel, response_name="response", file_name="response"):
+        try:
+            msg = io.StringIO(msg)
+            
+            self.client.api_call("files.upload", channels=req_channel, title="response: {}".format(response_name),
+                                 file=msg, filename='{}.txt'.format(file_name))
+            
+            msg.close()
 
         except Exception as e:
             print_error(e)
 
     def parse_rtm_data(self, data_array):
         """
-            only return the response to other users with keyword: host_name
+            only return the response to other users with keyword: KEYWORD_CMD_PREFIX + <host_name>
         """
         req = []
 
@@ -145,6 +162,7 @@ class SlackBot(object):
 
         return req
 
+    # main routine
     def start(self):
         if self.client.rtm_connect():
             while True:
