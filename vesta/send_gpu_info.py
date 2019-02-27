@@ -7,7 +7,7 @@ import argparse
 import subprocess
 import collections as cl
 
-from .settings import *
+from . import settings
 from .path_util import *
 
 # gpu queries.
@@ -124,7 +124,8 @@ def register(yaml_path, use_https=False):
     host_name = os.uname()[1]
 
     resp = requests.get("http{}://{}:{}/register/?host_name={}&token={}".format("s" if use_https else "", 
-                                                                                IP, PORT_NUM, host_name, TOKEN))
+                                                                                settings.IP, settings.PORT_NUM,
+                                                                                host_name, settings.TOKEN))
     if resp.status_code == requests.codes.ok:
         resp_dict = resp.json()
         if resp_dict["status_code"] == 200:
@@ -143,7 +144,7 @@ def post_data(token, yaml_path, use_https=False):
     content = get_gpu_info()
 
     resp = requests.post("http{}://{}:{}/update/host/{}?token={}".format("s" if use_https else "",
-                                                                       IP, PORT_NUM, token, TOKEN),
+                                                                         settings.IP, settings.PORT_NUM, token, settings.TOKEN),
                          data=json.dumps(content), headers={'Content-Type': 'application/json'})
     if resp.status_code == requests.codes.ok:
         resp_dict = resp.json()
@@ -152,7 +153,7 @@ def post_data(token, yaml_path, use_https=False):
         if resp_dict["status_code"] == 404:
             token = register(yaml_path)
             resp = requests.post("http{}://{}:{}/update/host/{}?token={}".format("s" if use_https else "",
-                                                                               IP, PORT_NUM, token, TOKEN),
+                                                                                 settings.IP, settings.PORT_NUM, token, settings.TOKEN),
                                  data=json.dumps(content), headers={'Content-Type': 'application/json'})
 
 def send_info(token_yaml_name="token", yaml_dir="data", nvidia_smi="nvidia-smi", use_https=False):
