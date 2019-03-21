@@ -7,8 +7,7 @@ import collections as cl
 from pprint import pprint
 from datetime import datetime
 
-from .env import *
-from .settings import *
+from . import env
 
 BASE_TABLE_NAME = "machines"
 
@@ -17,7 +16,52 @@ class DataBase(object):
         takes care of sqlite3 database
     """
     
-    def __init__(self, database_path):
+    def __init__(self, settings, database_path):
+        """ 
+            args:
+                settings
+                    settings must have following instance variable
+                        DB_NAME                                 :str
+                        DB_DIR                                  :str
+                        SERVER_NAME                             :str
+                        BIND_HOST                               :int
+                        TERM_WIDTH                              :int
+                        SERVER_SLEEP_TIME                       :int
+                        DOWN_TH                                 :int
+                        WS_RECEIVE_TIMEOUT                      :int
+                        SLACK_BOT_SLEEP_TIME                    :int
+                        SAVE_INTERVAL                           :int
+                        SORT_BY                                 :str
+                        IP                                      :str
+                        PORT_NUM                                :int
+                        TOKEN                                   :str
+                        PAGE_PER_HOST_NUM                       :int
+                        PAGE_TITLE                              :str
+                        PAGE_DESCRIPTION                        :str
+                        SLACK_WEBHOOK                           :str
+                        SLACK_BOT_TOKEN                         :str
+                        SLACK_BOT_POST_CHANNEL                  :str
+                        VALID_NETWORK                           :str
+                        SCHEDULE_FUNCTION                       :[str]
+                        REGISTER_UPLINK_MSG                     :str
+                        RE_UPLINK_MSG                           :str
+                        HOST_DOWN_MSG                           :str
+                        KEYWORD_CMD_PREFIX                      :str
+                        KEYWORD_PRINT_HOSTS                     :str
+                        KEYWORD_PRINT_ALL_HOSTS                 :str
+                        KEYWORD_PRINT_ALL_HOSTS_CMD             :str
+                        KEYWORD_PRINT_ALL_HOSTS_DETAIL          :str
+                        KEYWORD_PRINT_HELP                      :str
+                        QUIET                                   :bool
+
+                    typically, I recommend using `argparse`
+                    see `gpu_status_server.py` for more detail.
+
+                database_path: str
+                    path to sqlite3 file.
+        """
+
+        self.settings = settings
         self.database_path = database_path
 
         # host_list will be like
@@ -36,7 +80,7 @@ class DataBase(object):
 
         # sort for paging, this is not appropriate way if hosts are large number
         # host list is like {"host_hash":{"name":"host1". "ip_address":"192.168.0.1", ...}, {...}, }
-        if SORT_BY.lower() in ["ip", "ipaddress", "ip_address", "address"]:
+        if self.settings.SORT_BY.lower() in ["ip", "ipaddress", "ip_address", "address"]:
             self.sort_func = lambda d: list(map(lambda t: t[0], sorted(d.items(), key=lambda t: t[1]["ip_address"])))
         else:
             self.sort_func = lambda d: list(map(lambda t: t[0], sorted(d.items(), key=lambda t: t[1]["name"])))
@@ -51,7 +95,7 @@ class DataBase(object):
             result = cur.fetchall()
             for data in result:
                 #{hash key: host_name}
-                self.host_list[data[0]] = {"name":data[1], "ip_address":data[2], "last_update":0, "last_touch":0, "status":SERVER_WAITING_UPLINK, "cache_data":None}
+                self.host_list[data[0]] = {"name":data[1], "ip_address":data[2], "last_update":0, "last_touch":0, "status":env.SERVER_WAITING_UPLINK, "cache_data":None}
                 self.name_to_hash_table[data[1]] = data[0]
             
             print("#### database ####")
@@ -66,7 +110,7 @@ class DataBase(object):
 
     @property
     def total_page(self):
-        return (len(self.host_order)//PAGE_PER_HOST_NUM) + 1 if len(self.host_order)%PAGE_PER_HOST_NUM != 0 else 0
+        return (len(self.host_order)//self.settings.PAGE_PER_HOST_NUM) + 1 if len(self.host_order)%self.settings.PAGE_PER_HOST_NUM != 0 else 0
 
     def name_to_hash(self, host_name):
         if host_name in self.name_to_hash_table:
@@ -75,7 +119,7 @@ class DataBase(object):
         return ""
 
     def get_page_host_names(self, page_num):
-        return list(map(lambda x: self.host_list[x]["name"], self.host_order[PAGE_PER_HOST_NUM*(page_num-1):PAGE_PER_HOST_NUM*page_num]))
+        return list(map(lambda x: self.host_list[x]["name"], self.host_order[self.settings.PAGE_PER_HOST_NUM*(page_num-1):self.settings.PAGE_PER_HOST_NUM*page_num]))
 
     def init_database(self):
         con = sqlite3.connect(self.database_path)
@@ -155,7 +199,7 @@ class DataBase(object):
                                        "status":self.host_list[host_id]["status"]}
 
                 if len(result) != 0:
-                    if self.host_list[host_id]["status"] in STATUS_BAD:
+                    if self.host_list[host_id]["status"] in env.STATUS_BAD:
                         response[host_name]["data"].append({"gpu_data":{}, "timestamp":self.format_timestamp(result[0][0])})
                     else:
                         for data in result[::-1]:
@@ -191,7 +235,7 @@ class DataBase(object):
 
         fetch_data = cl.OrderedDict()
 
-        for host_hash in self.host_order[PAGE_PER_HOST_NUM*(page_num-1):PAGE_PER_HOST_NUM*page_num]:
+        for host_hash in self.host_order[self.settings.PAGE_PER_HOST_NUM*(page_num-1):self.settings.PAGE_PER_HOST_NUM*page_num]:
             host_name = self.host_list[host_hash]["name"]
 
             # {"host_name":{"data":[...], "ip_address", "status":"running"}, ...}
@@ -230,7 +274,7 @@ class DataBase(object):
                                "status":self.host_list[host_id]["status"]}
 
         if len(result) != 0:
-            if self.host_list[host_id]["status"] in STATUS_BAD and not ignore_down_state:
+            if self.host_list[host_id]["status"] in env.STATUS_BAD and not ignore_down_state:
                 response[host_name]["data"].append({"gpu_data":{}, "timestamp":self.format_timestamp(result[0][0])})
             else:
                 for data in result[::-1]:
@@ -287,7 +331,7 @@ class DataBase(object):
         if self.host_list[host_id]["cache_data"] is None:
             response[host_name]["data"].append({"gpu_data":{}, "timestamp":"no entry received."})
         else:
-            if self.host_list[host_id]["status"] in STATUS_BAD:
+            if self.host_list[host_id]["status"] in env.STATUS_BAD:
                 response[host_name]["data"].append({"gpu_data":{}, "timestamp":self.format_timestamp(self.host_list[host_id]["last_touch"])})
             else:
                 response[host_name]["data"].append({"gpu_data":self.host_list[host_id]["cache_data"]["data"],
@@ -312,14 +356,18 @@ class DataBase(object):
 
     def add_host(self, host_id, host_name, host_ip):
         tn = time.time()
-        self.host_list[host_id] = {"name":host_name, "ip_address":host_ip, "last_update":tn, "last_touch":tn, "status":SERVER_AVAILABLE}
+        self.host_list[host_id] = {"name":host_name, "ip_address":host_ip, "last_update":tn, "last_touch":tn, "status":env.SERVER_AVAILABLE}
         self.name_to_hash_table[host_name] = host_id
         self.host_order = self.sort_func(self.host_list)
         self.create_new_host(host_id, host_name, host_ip)
 
     def add_data(self, host_id, data):
         tn = time.time()
-        if tn - self.host_list[host_id]["last_update"] >= SAVE_INTERVAL:
+
+        self.host_list[host_id]["status"] = env.SERVER_AVAILABLE
+        self.host_list[host_id]["last_touch"] = tn
+
+        if tn - self.host_list[host_id]["last_update"] >= self.settings.SAVE_INTERVAL:
 
             con = sqlite3.connect(self.database_path)
             cur = con.cursor()
@@ -334,9 +382,6 @@ class DataBase(object):
 
         else:
             self.host_list[host_id]["cache_data"] = {"timestamp":int(datetime.now().strftime("%Y%m%d%H%M%S")), "data":data}
-
-        self.host_list[host_id]["status"] = SERVER_AVAILABLE
-        self.host_list[host_id]["last_touch"] = tn
 
     def touch_data(self, host_id):
         self.host_list[host_id]["last_touch"] = time.time()

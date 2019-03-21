@@ -3,11 +3,9 @@ import re
 import json
 import yaml
 import requests
-import argparse
 import subprocess
 import collections as cl
 
-from .settings import *
 from .path_util import *
 
 # gpu queries.
@@ -26,7 +24,7 @@ GPU_QUERY = [#  (query, alias)
 
 NUMBERS = ["device_num", "temperature", "total_memory", "available_memory", "used_memory", "gpu_volatile"]
 
-def get_gpu_info(nvidia_smi='nvidia-smi'):
+def get_gpu_info(settings):
     """
         example output of this function
 
@@ -105,7 +103,7 @@ def get_gpu_info(nvidia_smi='nvidia-smi'):
         gpu_info_dict["gpu:{}".format(line[0])] = {k:int(v) if k in NUMBERS else v for k, v in zip(alias_list+["processes"], line+[[]])}
 
     # get gpu processes ##################################################################
-    cmd = "nvidia-smi | awk '$2==\"Processes:\" {{p=1}} p && $2 ~ /[0-9]+/ && $3 > 0 {{print $2,$3,$5,$6}}'".format(nvidia_smi)
+    cmd = "nvidia-smi | awk '$2==\"Processes:\" {{p=1}} p && $2 ~ /[0-9]+/ && $3 > 0 {{print $2,$3,$5,$6}}'".format(settings.NVIDIA_SMI)
     output = subprocess.check_output(cmd, shell=True).decode("utf-8")
     lines = output.split('\n')
     lines = [ line.strip().split(" ") for line in lines if line.strip() != '' ]
@@ -120,11 +118,12 @@ def get_gpu_info(nvidia_smi='nvidia-smi'):
     
     return gpu_info_dict
 
-def register(yaml_path, use_https=False):
+def register(settings, yaml_path):
     host_name = os.uname()[1]
 
-    resp = requests.get("http{}://{}:{}/register/?host_name={}&token={}".format("s" if use_https else "", 
-                                                                                IP, PORT_NUM, host_name, TOKEN))
+    resp = requests.get("http{}://{}:{}/register/?host_name={}&token={}".format("s" if settings.USE_HTTPS else "", 
+                                                                                settings.IP, settings.PORT_NUM,
+                                                                                host_name, settings.TOKEN))
     if resp.status_code == requests.codes.ok:
         resp_dict = resp.json()
         if resp_dict["status_code"] == 200:
@@ -136,14 +135,12 @@ def register(yaml_path, use_https=False):
                                             default_flow_style=False))
 
             return resp_dict["id"]
-    
-    exit(1)
 
-def post_data(token, yaml_path, use_https=False):
+def post_data(settings, token, yaml_path):
     content = get_gpu_info()
 
-    resp = requests.post("http{}://{}:{}/update/host/{}?token={}".format("s" if use_https else "",
-                                                                       IP, PORT_NUM, token, TOKEN),
+    resp = requests.post("http{}://{}:{}/update/host/{}?token={}".format("s" if settings.USE_HTTPS else "",
+                                                                         settings.IP, settings.PORT_NUM, token, settings.TOKEN),
                          data=json.dumps(content), headers={'Content-Type': 'application/json'})
     if resp.status_code == requests.codes.ok:
         resp_dict = resp.json()
@@ -151,35 +148,38 @@ def post_data(token, yaml_path, use_https=False):
         # in case server has initialized the database
         if resp_dict["status_code"] == 404:
             token = register(yaml_path)
-            resp = requests.post("http{}://{}:{}/update/host/{}?token={}".format("s" if use_https else "",
-                                                                               IP, PORT_NUM, token, TOKEN),
+            resp = requests.post("http{}://{}:{}/update/host/{}?token={}".format("s" if settings.USE_HTTPS else "",
+                                                                                 settings.IP, settings.PORT_NUM, token, settings.TOKEN),
                                  data=json.dumps(content), headers={'Content-Type': 'application/json'})
 
-def send_info(token_yaml_name="token", yaml_dir="data", nvidia_smi="nvidia-smi", use_https=False):
-    yaml_path = path_join(yaml_dir, token_yaml_name+".yaml")
+def send_info(settings):
+    """
+        settings
+            settings must have following instance variable
+                IP                                      :str
+                PORT_NUM                                :int
+                TOKEN                                   :str
+                YAML_DIR                                :str
+                YAML_NAME                               :str
+                NVIDIA_SMI                              :str
+                USE_HTTPS                               :bool
+
+            typically, I recommend using `argparse`
+            see `gpu_info_sender.py` for more detail.
+    """
+
+    yaml_path = path_join(settings.YAML_DIR, settings.YAML_NAME+".yaml")
 
     # in case it does not exist
-    mkdir(yaml_dir)
+    mkdir(settings.YAML_DIR)
     if path_exist(yaml_path):
         with open(yaml_path, "r") as f:
             yaml_data = yaml.load(f)
             if yaml_data is not None:
                 token = yaml_data["hash_key"]
             else:
-                token = register(yaml_path, use_https)
+                token = register(settings, yaml_path, settings.USE_HTTPS)
     else:
-        token = register(yaml_path, use_https)
+        token = register(settings, yaml_path)
 
-    post_data(token, yaml_path, use_https)
-
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-
-    parser.add_argument('--yaml_dir', type=str, default="data", help='the dir of yaml which token is saved.')
-    parser.add_argument('--yaml_name', type=str, default="token", help='path of yaml file.')
-    parser.add_argument('--nvidia-smi', type=str, default="nvidia-smi", help='if you want to specify nvidia-smi command.')
-    parser.add_argument('--use_https', action="store_true", default=False, help='')
-
-    args = parser.parse_args()
-    
-    main(args.yaml_name, args.yaml_dir, args.nvidia_smi, args.use_https)
+    post_data(settings, token, yaml_path)

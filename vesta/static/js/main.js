@@ -52,10 +52,11 @@ var _min_temp;
 var _element_data;
 
 function set_collapsible(host_name){
-    coll = $("#"+host_name)[0]
-    coll.addEventListener("click", function() {
+    var coll = $("#"+host_name)
+    var content = coll.find(".content")[0];
+    
+    coll[0].addEventListener("click", function() {
         this.classList.toggle("active");
-        var content = $("#"+host_name).find(".content")[0];
         if (content.style.maxHeight){
             content.style.maxHeight = null;
         }else{

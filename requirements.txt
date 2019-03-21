@@ -1,6 +1,6 @@
 Flask==1.0.2
 Flask-Classful==0.14.1
-PyYAML==3.12
+PyYAML==5.1
 schedule==0.5.0
 gevent==1.2.1
 gevent-websocket==0.10.1
