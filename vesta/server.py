@@ -589,7 +589,7 @@ class HTTPServer(object):
             for hash_key, host in self.database.host_list.items():
                 time_diff = time.time() - host["last_touch"]
                 if time_diff > self.settings.DOWN_TH and not host["status"] in env.STATUS_BAD:
-                    if settings.SLACK_WEBHOOK != "":
+                    if self.settings.SLACK_WEBHOOK != "":
                         self.send_down_detection(host["name"], self.settings.DOWN_TH)
 
                     self.database.host_list[hash_key]["status"] = env.SERVER_DOWN
