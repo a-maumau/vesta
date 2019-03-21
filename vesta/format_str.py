@@ -1,8 +1,8 @@
 """
-    text formatting function
+    text formatting functions
 """
 
-def truncate_str(text, length=25, fill_char=None, ellipsis="…", align_right=False):
+def truncate_str(text, length=25, fill_char=None, ellipsis="…", align_right=False, ellipsis_left=False):
     """
         <------------- length ----------------->
                    fill_char
@@ -10,17 +10,27 @@ def truncate_str(text, length=25, fill_char=None, ellipsis="…", align_right=Fa
                    v
         text####################################
 
+        if align_right is true:
+        ####################################text
+
                                             ellipsis
                                                |
                                                v
         text_text_text_text_text_text_text_text…
 
-        if align_right is true
-        ####################################text
+        if ellipsis_left is true:
+        …ext_text_text_text_text_text_text_text_
+
     """
+
+    if length <= 0:
+        return ""
     
     if len(text) > length:
-        return text[:length-len(ellipsis)]+ellipsis
+        if ellipsis_left:
+            return ellipsis+text[len(ellipsis):length]
+        else:
+            return text[:length-len(ellipsis)]+ellipsis
     elif fill_char is not None:
         if align_right:
             return "{}{}".format(fill_char*(length-len(text)), text)
@@ -31,7 +41,7 @@ def truncate_str(text, length=25, fill_char=None, ellipsis="…", align_right=Fa
 
 def align_str(text, fill_char=" ", margin_char=" ", start=4, margin=(0,0), length=60, ellipsis="…", new_line=True):
     """
-      args:
+    args:
         start: int
           set start point of magin or text.
           first char is 0
@@ -45,15 +55,21 @@ def align_str(text, fill_char=" ", margin_char=" ", start=4, margin=(0,0), lengt
                   margin     
     """
 
+    if length <= 0:
+        return ""
+
     align_text = ""
 
-    margin_start_pos = max(0, start)
+    margin_start_pos = min(max(0, start), length)
     align_text += fill_char*margin_start_pos
-    align_text += margin_char*margin[0]
+
+    remaining_chars = length-margin_start_pos
+    align_text += margin_char*min(margin[0], remaining_chars)
 
     # truncate text if it reached to length
     if len(text)+margin_start_pos > length:
-        align_text += text[margin_start_pos:length-len(ellipsis)]+ellipsis
+        remaining_chars = length-len(align_text)
+        align_text += text[0:remaining_chars-len(ellipsis)]+ellipsis
     else:
         align_text += text
 
@@ -76,11 +92,17 @@ def create_bar_str(current, total, msg="", fill_char="/", empty_char=" ", left_b
                    length=60, new_line=True):
     """
         <------------- length ----------------->
-     left_bracket  fill_char   empty_char  right_bracket
+    left_bracket  fill_char   empty_char  right_bracket
            \        /            /         /
             v      v            v         v
         msg [///////////////              ]  50%
+         ^
+         |
+         msg
     """
+
+    if length <= 0:
+        return ""
 
     bar_len = length-len(left_bracket)-len(right_bracket)-len(" ddd%")-len(msg)
     fill_num = int((current/total)*bar_len)
@@ -112,39 +134,46 @@ def format_gpu_base_info_str(temperature, used_memory, total_memory, available_m
 
 def format_process_str(process_list, length=80, cmd_len=25, add_before="", add_after="", new_line=True):
     """
-        ├── /usr/bin/X                   148MiB
-        └── compiz                        84MiB 
+        ├── /usr/bin/X                   148MiB user
+        └── compiz                        84MiB user
     """
+
+    if length <= 0:
+        return ""
 
     process_str = ""
 
     for index, process_data in enumerate(process_list):
         if index == len(process_list)-1:
-            process_str += "{}{}{}{}".format(add_before, truncate_str("└── {} {:6d}MiB {}".format(
-                                                                      truncate_str(process_data['name'], 
-                                                                                   length=cmd_len,
-                                                                                   fill_char=" ",
-                                                                                   ellipsis="…"),
-                                                                      int(process_data['used_memory']),
-                                                                      process_data['user']),
-                                                                      length=length,
-                                                                      fill_char=" ",
-                                                                      ellipsis="…"),
-                            add_after,
-                            "\n" if new_line else "")
+            process_str += "{}{}{}{}".format(add_before,
+                                             truncate_str("└── {} {:6d}MiB {}".format(
+                                                            truncate_str(process_data['name'], 
+                                                                        length=cmd_len,
+                                                                        fill_char=" ",
+                                                                        ellipsis="…",
+                                                                        ellipsis_left=True),
+                                                            int(process_data['used_memory']),
+                                                            process_data['user']),
+                                                            length=length,
+                                                            fill_char=" ",
+                                                            ellipsis="…"),
+                                             add_after,
+                                             "\n" if new_line else "")
         else:
-            process_str += "{}{}{}{}".format(add_before, truncate_str("├── {} {:6d}MiB {}".format(
-                                                                      truncate_str(process_data['name'], 
-                                                                                   length=cmd_len,
-                                                                                   fill_char=" ",
-                                                                                   ellipsis="…"),
-                                                                      int(process_data['used_memory']),
-                                                                      process_data['user']),
-                                                                      length=length,
-                                                                      fill_char=" ",
-                                                                      ellipsis="…"),
-                            add_after,
-                            "\n" if new_line else "")
+            process_str += "{}{}{}{}".format(add_before,
+                                             truncate_str("├── {} {:6d}MiB {}".format(
+                                                            truncate_str(process_data['name'], 
+                                                                       length=cmd_len,
+                                                                       fill_char=" ",
+                                                                       ellipsis="…",
+                                                                       ellipsis_left=True),
+                                                            int(process_data['used_memory']),
+                                                            process_data['user']),
+                                                            length=length,
+                                                            fill_char=" ",
+                                                            ellipsis="…"),
+                                             add_after,
+                                             "\n" if new_line else "")
 
     return process_str
 
@@ -160,8 +189,7 @@ def format_gpu_info(fetch_data):
         +------------------+------------------------+-----------------+--------+-------+
         |                                                                              |
     """
-
-    info =  "+------------------+------------------------+-----------------+--------+-------+\n"
+    info  = "+------------------+------------------------+-----------------+--------+-------+\n"
     info += "| host             | gpu                    | memory usage    | volat. | temp. |\n"
     info += "+------------------+------------------------+-----------------+--------+-------+\n"
 
@@ -224,8 +252,8 @@ def format_gpu_detail_info(fetched_data, term_width=80):
               │  235 / 11169MiB          10934MiB            0%         36°C               │  
               │                                                                            │  
               │ mem [/                                                              ]   2% │  
-              │  ├── /usr/bin/X                   148MiB                                   │  
-              │  └── compiz                        84MiB                                   │  
+              │  ├── /usr/bin/X                   148MiB user                              │  
+              │  └── compiz                        84MiB user                              │  
               └────────────────────────────────────────────────────────────────────────────┘  
             """
             for gpu, status in data["gpu_data"].items():

@@ -20,10 +20,9 @@ from gevent import pywsgi, Timeout
 from geventwebsocket.handler import WebSocketHandler
 
 from .__version__ import __version__
+from . import env
 from .database import DataBase
 from .slack_bot_manager import SlackBot
-from .env import *
-from .settings import *
 from .path_util import *
 from .format_str import *
 from .terminal_color import *
@@ -39,13 +38,15 @@ def create_response_403(info_msg="forbidden"):
 def create_response_404(info_msg="not found"):
     return json.dumps({"status":"ERROR", "status_code":404, "info":"{}".format(info_msg)})
 
-def send_uplink_detection(msg, host_name):
-    try:
-        resp = requests.post(SLACK_WEBHOOK, data=json.dumps({"text":msg.format(host_name)}))
-        if resp.history != [] and resp.history != 200:
-                print("could not send message to Slack.")
-    except Exception as e:
-        print(e)
+def send_uplink_detection(settings, msg, host_name):
+    if settings.SLACK_WEBHOOK != "":
+        try:
+            resp = requests.post(settings.SLACK_WEBHOOK, data=json.dumps({"text":msg.format(host_name)}))
+            if resp.history != [] and resp.history != 200:
+                    print("could not send message to Slack.")
+        except Exception as e:
+            if not settings.QUIET:
+                print(e)
 
 """
     # this part is not looking good... should be merged?
@@ -110,16 +111,25 @@ def send_uplink_detection(msg, host_name):
 """
 
 class StatesView(FlaskView):
+    """
+        this class take care of `http://<server_address>/states/`
+        it will provide stored gpu status information.
+
+        if you want to access to latest data,
+        `access http://<server_address>/` which in MainView.
+    """
+
     database = None
 
     @classmethod
-    def init(cls, database, term_width=60):
+    def init(cls, settings, database, term_width=80):
+        cls.settings = settings
         cls.database = database
         cls.term_width = term_width
 
     # filtering
     def before_request(self, name, **kwargs):
-        match = re.search(VALID_NETWORK, request.remote_addr)
+        match = re.search(self.settings.VALID_NETWORK, request.remote_addr)
         if match is None:
             abort(403)
 
@@ -152,21 +162,28 @@ class StatesView(FlaskView):
             return create_response_404("not found")
 
 class RegisterView(FlaskView):
+    """
+        this class take care of `http://<server_address>/register/`
+        it is used by clients to register themselves.
+    """
+
     database = None
 
     @classmethod
-    def init(cls, database):
+    def init(cls, settings, database):
+        cls.settings = settings
         cls.database = database
 
     def send_uplink_detection(self, host_name):
-        msg = REGISTER_UPLINK_MSG.format(host_name)
+        msg = self.settings.REGISTER_UPLINK_MSG.format(host_name)
         
-        resp = requests.post(SLACK_WEBHOOK, data=json.dumps({"text":msg}))
+        resp = requests.post(self.settings.SLACK_WEBHOOK, data=json.dumps({"text":msg}))
         if resp.history != [] and resp.history != 200:
-            print("could not send message to Slack.")
+            if not self.settings.QUIET:
+                print("could not send message to Slack.")
 
     def validate_host_name(self, name):
-        # for avoiding error in sqlite3, I think there is more token cause error...
+        # for avoiding error in sqlite3, I think there are more tokens cause error...
         name = name.replace(".", "_").replace(",", "_").replace("-", "_").replace("@", "_")
         name = name.replace("[", "_").replace("]", "_").replace(":", "_").replace(";", "_")
 
@@ -177,7 +194,7 @@ class RegisterView(FlaskView):
         name = self.validate_host_name(request.args.get('host_name'))
         register_hash_code = request.args.get('token')
 
-        if register_hash_code == TOKEN:
+        if register_hash_code == self.settings.TOKEN:
             hash_code = random.getrandbits(128)
             hash_key = "{:x}".format(hash_code)
 
@@ -187,11 +204,12 @@ class RegisterView(FlaskView):
 
             self.database.add_host(hash_key, name, request.remote_addr)
 
-            print("[ {} ] {}{}register: {}[{}] hash:{}{}{}".format(datetime.now().strftime("%Y%m%d %H:%M:%S"),
-                                                                   terminal_bg.BLUE, terminal_fg.WHITE, 
-                                                                   name, request.remote_addr, hash_key,
-                                                                   terminal_fg.END, terminal_bg.END))
-            send_uplink_detection(REGISTER_UPLINK_MSG, name)
+            if not self.settings.QUIET:
+                print("[ {} ] {}{}register: {}[{}] hash:{}{}{}".format(datetime.now().strftime("%Y%m%d %H:%M:%S"),
+                                                                       terminal_bg.BLUE, terminal_fg.WHITE, 
+                                                                       name, request.remote_addr, hash_key,
+                                                                       terminal_fg.END, terminal_bg.END))
+            send_uplink_detection(self.settings, self.settings.REGISTER_UPLINK_MSG, name)
 
             return json.dumps({"id":hash_key,
                                "register_name":name,
@@ -201,16 +219,22 @@ class RegisterView(FlaskView):
             return create_response_403()
 
 class UpdateView(FlaskView):
+    """
+        this class take care of `http://<server_address>/update/<host_name>`
+        it is used by clients to update their data
+    """
+
     database = None
 
     @classmethod
-    def init(cls, database):
+    def init(cls, settings, database):
+        cls.settings = settings
         cls.database = database
         cls.client_update = {}
 
     # filtering
     def before_request_client_get_update(self, name, **kwargs):
-        match = re.search(VALID_NETWORK, request.remote_addr)
+        match = re.search(self.settings.VALID_NETWORK, request.remote_addr)
         if match is None:
             abort(403)
 
@@ -218,7 +242,7 @@ class UpdateView(FlaskView):
     def add_data(self, hash_key):
         register_hash_code = request.args.get('token')
 
-        if register_hash_code == TOKEN:
+        if register_hash_code == self.settings.TOKEN:
             if self.database.has_hash(hash_key):
                 _thread = threading.Thread(target=self.__add_to_database,
                                            args=(request.get_json(), hash_key, self.database.host_list[hash_key]["name"]))
@@ -232,14 +256,16 @@ class UpdateView(FlaskView):
             return create_response_403()
 
     def __add_to_database(self, data, hash_key, host_name):
-        if self.database.host_list[hash_key]["status"] in STATUS_BAD:
-            send_uplink_detection(UPDATE_UPLINK_MSG, host_name)
-            print("[ {} ] {}{}UP    : {}{}{}".format(datetime.now().strftime("%Y%m%d %H:%M:%S"),
-                                                     terminal_bg.GREEN, terminal_fg.BLACK,
-                                                     host_name,
-                                                     terminal_bg.END, terminal_fg.END))
+        if self.database.host_list[hash_key]["status"] in env.STATUS_BAD:
+            send_uplink_detection(self.settings, self.settings.RE_UPLINK_MSG, host_name)
+            if not self.settings.QUIET:
+                print("[ {} ] {}{}UP    : {}{}{}".format(datetime.now().strftime("%Y%m%d %H:%M:%S"),
+                                                         terminal_bg.GREEN, terminal_fg.BLACK,
+                                                         host_name,
+                                                         terminal_bg.END, terminal_fg.END))
         else:
-            print("[ {} ] UPDATE: {}".format(datetime.now().strftime("%Y%m%d %H:%M:%S"), host_name))
+            if not self.settings.QUIET:
+                print("[ {} ] UPDATE: {}".format(datetime.now().strftime("%Y%m%d %H:%M:%S"), host_name))
 
         self.database.add_data(hash_key, data)
         self.__add_queue(self.database.host_list[hash_key]["name"])
@@ -279,7 +305,7 @@ class UpdateView(FlaskView):
                 # wait 1sec for client,
                 # and check if new page number is requested or not
                 page_num = None
-                with Timeout(WS_RECEIVE_TIMEOUT, False):
+                with Timeout(self.settings.WS_RECEIVE_TIMEOUT, False):
                     page_num = ws.receive()
 
                 if page_num is None:
@@ -321,20 +347,26 @@ class UpdateView(FlaskView):
             abort(405)
 
 class MainView(FlaskView):
+    """
+        this class take care of `http://<server_address>/`
+        it will provide a webpage and terminal data access if you use url parameter `term=`
+    """
+
     route_base = "/"
 
     database = None
     term_width = 60
 
     @classmethod
-    def init(cls, database, term_width=60):
+    def init(cls, settings, database, term_width=60):
+        cls.settings = settings
         cls.database = database
         cls.term_width = term_width
-        cls.env = Environment(loader=FileSystemLoader('.'), trim_blocks=False)
+        #cls.env = Environment(loader=FileSystemLoader('.'), trim_blocks=False)
 
     # filtering
     def before_request(self, name, **kwargs):
-        match = re.search(VALID_NETWORK, request.remote_addr)
+        match = re.search(self.settings.VALID_NETWORK, request.remote_addr)
         if match is None:
             abort(403)
 
@@ -343,7 +375,8 @@ class MainView(FlaskView):
 
         if fd is not None:
             element = render_template('host_entry.tpl', host_name=host_name, host_ip=fd["ip_address"], host_status=fd["status"],
-                                      timestamp=fd["data"][0]["timestamp"], gpu_info=fd["data"][0]["gpu_data"], ok_statuses=STATUS_OK)
+                                      timestamp=fd["data"][0]["timestamp"], gpu_info=fd["data"][0]["gpu_data"],
+                                      ok_statuses=env.STATUS_OK)
 
             return json.dumps({"element":element, "found":True})
         else:
@@ -358,9 +391,10 @@ class MainView(FlaskView):
 
         fetch_data = self.database.fetch_page(page_num)
 
-        return render_template('index.html', vesta_version=__version__, title=PAGE_TITLE, description=PAGE_DESCRIPTION,
-                               page_num=page_num, total_page=total_page, page_data=fetch_data, ok_statuses=STATUS_OK,
-                               server_address=IP, server_port=PORT_NUM)
+        return render_template('index.html', vesta_version=__version__,
+                               title=self.settings.PAGE_TITLE, description=self.settings.PAGE_DESCRIPTION,
+                               page_num=page_num, total_page=total_page, page_data=fetch_data, ok_statuses=env.STATUS_OK,
+                               server_address=self.settings.IP, server_port=self.settings.PORT_NUM)
 
     def index(self):
         if request.args.get('term', default=False, type=bool):
@@ -375,14 +409,18 @@ class MainView(FlaskView):
                 if request.args.get('detail', default=False, type=bool):
                     response = "vesta ver. {}\n".format(__version__)+format_gpu_detail_info(fetch_data, term_width=self.term_width)
                 else:
-                    response = "vesta ver. {}\n".format(__version__)+format_gpu_info(fetch_data)
+                    response  = "+------------------------------------------------------------------------------+\n"
+                    response += "| vesta ver. {}|\n".format(truncate_str(__version__, length=66, fill_char=" "))
+                    response += format_gpu_info(fetch_data)
             else:
                 fetch_data = self.database.fetch_page(page_num)
 
                 if request.args.get('detail', default=False, type=bool):
                     response = "vesta ver. {}\n".format(__version__)+format_gpu_detail_info(fetch_data, term_width=self.term_width)
                 else:
-                    response = "vesta ver. {}\n".format(__version__)+format_gpu_info(fetch_data)
+                    response  = "+------------------------------------------------------------------------------+\n"
+                    response += "| vesta ver. {}|\n".format(truncate_str(__version__, length=66, fill_char=" "))
+                    response += format_gpu_info(fetch_data)
 
             return response
         else:
@@ -392,17 +430,60 @@ class MainView(FlaskView):
             return self.page_content(request.args.get('page', default=0, type=int))
 
 class HTTPServer(object):
-    def __init__(self, database_name="gpu_states.db", database_dir="data", name="gpu_monitor", bind_host="0.0.0.0",
-                       term_width=60, quiet=False):
+    def __init__(self, settings):
+        """ 
+            args:
+                settings
+                    settings must have following instance variable
+                        DB_NAME                                 :str
+                        DB_DIR                                  :str
+                        SERVER_NAME                             :str
+                        BIND_HOST                               :int
+                        TERM_WIDTH                              :int
+                        SERVER_SLEEP_TIME                       :int
+                        DOWN_TH                                 :int
+                        WS_RECEIVE_TIMEOUT                      :int
+                        SLACK_BOT_SLEEP_TIME                    :int
+                        SAVE_INTERVAL                           :int
+                        SORT_BY                                 :str
+                        IP                                      :str
+                        PORT_NUM                                :int
+                        TOKEN                                   :str
+                        PAGE_PER_HOST_NUM                       :int
+                        PAGE_TITLE                              :str
+                        PAGE_DESCRIPTION                        :str
+                        SLACK_WEBHOOK                           :str
+                        SLACK_BOT_TOKEN                         :str
+                        SLACK_BOT_POST_CHANNEL                  :str
+                        VALID_NETWORK                           :str
+                        SCHEDULE_FUNCTION                       :[str]
+                        REGISTER_UPLINK_MSG                     :str
+                        RE_UPLINK_MSG                           :str
+                        HOST_DOWN_MSG                           :str
+                        KEYWORD_CMD_PREFIX                      :str
+                        KEYWORD_PRINT_HOSTS                     :str
+                        KEYWORD_PRINT_ALL_HOSTS                 :str
+                        KEYWORD_PRINT_ALL_HOSTS_CMD             :str
+                        KEYWORD_PRINT_ALL_HOSTS_DETAIL          :str
+                        KEYWORD_PRINT_HELP                      :str
+                        QUIET                                   :bool
+
+                    typically, I recommend using `argparse`
+                    see `gpu_status_server.py` for more detail.
+
+        """
+
+        self.settings = settings
 
         # in case it's called from other modules
         self.this_module_path = re.sub("server.py", "", re.sub('\s*File\s"', "", os.path.abspath(__file__)))
 
-        self.database_name = database_name
-        self.database_dir = database_dir
-        self.name = name
-        self.bind_host = bind_host
-        self.bind_port = PORT_NUM
+        self.database_name = self.settings.DB_NAME
+        self.database_dir = self.settings.DB_DIR
+        self.name = self.settings.SERVER_NAME
+        self.bind_host = self.settings.BIND_HOST
+        self.bind_port = self.settings.PORT_NUM
+        self.term_width = self.settings.TERM_WIDTH
 
         self.main_thread = None
         self.app = Flask(self.name,
@@ -411,53 +492,54 @@ class HTTPServer(object):
 
         # in case it doesn't exist
         mkdir(self.database_dir)
-        self.database = DataBase(path_join(self.database_dir, self.database_name))
+        self.database = DataBase(self.settings, path_join(self.database_dir, self.database_name))
 
-        MainView.init(self.database, term_width)
+        MainView.init(self.settings, self.database, self.term_width)
         MainView.register(self.app)
 
-        StatesView.init(self.database, term_width)
+        StatesView.init(self.settings, self.database, self.term_width)
         StatesView.register(self.app)
 
-        RegisterView.init(self.database)
+        RegisterView.init(self.settings, self.database)
         RegisterView.register(self.app)
 
-        UpdateView.init(self.database)
+        UpdateView.init(self.settings, self.database)
         UpdateView.register(self.app)
 
         self.wsgi_server = pywsgi.WSGIServer((self.bind_host, self.bind_port), self.app, handler_class=WebSocketHandler)
 
-        self.slack_bot = SlackBot(SLACK_BOT_TOKEN, self.database)
+        if self.settings.SLACK_BOT_TOKEN != "":
+            self.slack_bot = SlackBot(self.settings, self.settings.SLACK_BOT_TOKEN, self.database)
+        else:
+            self.slack_bot = None
 
-        if quiet:
+        if self.settings.QUIET:
             import logging
             log = logging.getLogger("werkzeug")
             log.disabled = True
             self.app.logger.disabled = True
 
     def start(self, ssl_context=None):
-        # it seems wrapping the flask server working only calling the wsgi_server
-        # I will delete this part next release
-        #self.main_thread = threading.Thread(target=self.app.run, args=(self.bind_host, self.bind_port), kwargs={"ssl_context":ssl_context})
         self.ws_thread = threading.Thread(target=self.wsgi_server.serve_forever)
-        self.bot_thread = threading.Thread(target=self.slack_bot.start)
-
-        #self.main_thread.daemon = True
-        #self.main_thread.start()
         self.ws_thread.daemon = True
         self.ws_thread.start()
-        self.bot_thread.daemon = True
-        self.bot_thread.start()
+
+        if self.slack_bot is not None:
+            self.bot_thread = threading.Thread(target=self.slack_bot.start)
+            self.bot_thread.daemon = True
+            self.bot_thread.start()
 
     def send_down_detection(self, host_name, down_time):
-        msg = HOST_DOWN_MSG.format(host_name, down_time)
+        msg = self.settings.HOST_DOWN_MSG.format(host_name, down_time)
         
         try:
-            resp = requests.post(SLACK_WEBHOOK, data=json.dumps({"text":msg}))
+            resp = requests.post(self.settings.SLACK_WEBHOOK, data=json.dumps({"text":msg}))
             if resp.history != [] and resp.history != 200:
-                print("could not send message to Slack.")
+                if not self.settings.QUIET:
+                    print("could not send message to Slack.")
         except Exception as e:
-            print(e)
+            if not self.settings.QUIET:
+                print(e)
 
     def send_hosts_statuses(self, msg_title="ALL_HOSTS_STATUSES"):
         msg = ""
@@ -465,8 +547,9 @@ class HTTPServer(object):
         for host_name in self.database.host_order:
             host = self.database.host_list[host_name]
 
-            msg += "{} : {}\n".format(truncate_str(host["name"], length=16, fill_char=" "), "DEAD" if host["status"] in STATUS_BAD else "Alive")
-            if host["status"] in STATUS_OK:
+            msg += "{} : {}\n".format(truncate_str(host["name"], length=16, fill_char=" "),
+                                      "DEAD" if host["status"] in env.STATUS_BAD else "Alive")
+            if host["status"] in env.STATUS_OK:
                 fetch_data = self.database.fetch(host["name"], fetch_num=1, return_only_data=True)
 
                 if fetch_data["data"] != []:
@@ -480,30 +563,39 @@ class HTTPServer(object):
                         if status["processes"] != []:
                             msg += "    [{} ({})] {}\n".format(gpu, status["gpu_name"], status["timestamp"])
                             msg += format_process_str(status["processes"], add_before="        ")
+            msg += "\n"
 
         if len(msg) > 0:
-            self.slack_bot.send_snippet(msg, SLACK_BOT_POST_CHANNEL, msg_title, "statuses")
+            if self.slack_bot is not None:
+                self.slack_bot.send_snippet(msg, self.settings.SLACK_BOT_POST_CHANNEL, msg_title, "statuses")
 
-    def watch_and_sleep(self, sleep_time=1, down_th_sec=60):
+    def watch_and_sleep(self):
         """
-            down_th_sec should be set larger number than a interval
+            self.settings.DOWN_TH should be set larger number than a interval
             what you are going to send from the host.
         """
 
-        if SCHEDULE_FUNCTION:
-            for sche in SCHEDULE_FUNCTION:
-                exec(sche)
+        if self.settings.SCHEDULE_FUNCTION:
+            try:
+                for sche in self.settings.SCHEDULE_FUNCTION:
+                    exec(sche)
+            except Exception as e:
+                print(e)
 
         while True:
             schedule.run_pending()
-            time.sleep(sleep_time)
+            time.sleep(self.settings.SERVER_SLEEP_TIME)
 
             for hash_key, host in self.database.host_list.items():
                 time_diff = time.time() - host["last_touch"]
-                if time_diff > down_th_sec and not host["status"] in STATUS_BAD:
-                    self.send_down_detection(host["name"], down_th_sec)
-                    self.database.host_list[hash_key]["status"] = SERVER_DOWN
-                    print("[ {} ] {}{}DOWN  : {}{}{}".format(datetime.now().strftime("%Y%m%d %H:%M:%S"),
-                                                                     terminal_bg.RED, terminal_fg.WHITE, 
-                                                                     host["name"],
-                                                                     terminal_fg.END, terminal_bg.END))
+                if time_diff > self.settings.DOWN_TH and not host["status"] in env.STATUS_BAD:
+                    if settings.SLACK_WEBHOOK != "":
+                        self.send_down_detection(host["name"], self.settings.DOWN_TH)
+
+                    self.database.host_list[hash_key]["status"] = env.SERVER_DOWN
+
+                    if not self.settings.QUIET:
+                        print("[ {} ] {}{}DOWN  : {}{}{}".format(datetime.now().strftime("%Y%m%d %H:%M:%S"),
+                                                                         terminal_bg.RED, terminal_fg.WHITE, 
+                                                                         host["name"],
+                                                                         terminal_fg.END, terminal_bg.END))
