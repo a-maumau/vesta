@@ -70,7 +70,7 @@ class SlackBot(object):
                 msg = ""
 
                 # print all hosts status
-                if req_host in settings.KEYWORD_PRINT_ALL_HOSTS and self.valid_key_pah:
+                if req_host in self.settings.KEYWORD_PRINT_ALL_HOSTS and self.valid_key_pah:
                     for host_name in self.database.host_order:
                         host = self.database.host_list[host_name]
                         
