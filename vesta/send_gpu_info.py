@@ -137,7 +137,7 @@ def register(settings, yaml_path):
             return resp_dict["id"]
 
 def post_data(settings, token, yaml_path):
-    content = get_gpu_info()
+    content = get_gpu_info(settings)
 
     resp = requests.post("http{}://{}:{}/update/host/{}?token={}".format("s" if settings.USE_HTTPS else "",
                                                                          settings.IP, settings.PORT_NUM, token, settings.TOKEN),
