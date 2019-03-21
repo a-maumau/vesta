@@ -93,7 +93,7 @@ def get_gpu_info(settings):
     alias_list = list(map(lambda x: x[1], GPU_QUERY))
 
     # nounits means no % or MiB or so on
-    cmd = '{} --query-gpu={} --format=csv,noheader,nounits'.format(nvidia_smi, ','.join(query_list))
+    cmd = '{} --query-gpu={} --format=csv,noheader,nounits'.format(settings.NVIDIA_SMI, ','.join(query_list))
     output = subprocess.check_output(cmd, shell=True).decode("utf-8")
     lines = output.split('\n')
     lines = [ line.strip() for line in lines if line.strip() != '' ]
