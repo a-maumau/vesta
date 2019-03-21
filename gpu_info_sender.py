@@ -1,3 +1,4 @@
+import yaml
 import argparse
 
 from vesta.send_gpu_info import send_info
