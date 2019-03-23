@@ -214,9 +214,13 @@ def format_gpu_info(fetch_data):
             info += "+------------------+------------------------+-----------------+--------+-------+\n"
         else:
             st = truncate_str(host_info["status"], length=69, fill_char=" ", ellipsis="…", align_right=False)
-            h = truncate_str(host_name, length=22, fill_char=" ", ellipsis="…", align_right=False)
-            ip = truncate_str(host_info["ip_address"], length=15, fill_char=" ", ellipsis="…", align_right=True)
-            ts = truncate_str(host_info["data"][0]["timestamp"], length=21, fill_char=" ", ellipsis="…", align_right=False)
+
+            # |   {host_name} ({host_ip}) last update: {}|
+            # 1<3><- min24 ->11<-max15->11<-    33     ->1
+            # it can use 38 char for host_name and host_ip
+            h = truncate_str(host_name, length=38-len(host_info["ip_address"]), fill_char=" ", ellipsis="…", align_right=False)
+            ip = truncate_str(host_info["ip_address"], length=len(host_info["ip_address"]), fill_char=" ", ellipsis="…", align_right=True)
+            ts = truncate_str(host_info["data"][0]["timestamp"], length=20, fill_char=" ", ellipsis="…", align_right=False)
             info += "| status: {}|\n".format(st)
             info += "|   {} ({}) last update: {}|\n".format(h, ip, ts)
             info += "+------------------+------------------------+-----------------+--------+-------+\n"
@@ -287,3 +291,50 @@ def format_gpu_detail_info(fetched_data, term_width=80):
         info += ul
 
     return info
+
+def format_gpu_table(fetch_data):
+    """
+        # width is now fix to 80
+        +------------------------------+---------------------------+-------------------+
+        | host name                    | gpu name                  | memory usage (MiB)|
+        +------------------------------+---------------------------+-------------------+
+        |abcdefghijklmnopqrstuvwxyzabc…| 0:Geforce GTX 1080Ti      | 0123456 / 0123456 |
+        |                              | 1:Geforce GTX 1080Ti      | 0123456 / 0123456 |
+        |<-          30 chars        ->|<-      27 chars         ->|x<-   17 chars  ->x|    
+        +------------------------------+---------------------------+-------------------+
+        |                                                                              |
+    """
+    info  = "+------------------------------+---------------------------+-------------------+\n"
+    info += "| host name                    | gpu name                  | memory usage (MiB)|\n"
+    info += "+------------------------------+---------------------------+-------------------+\n"
+
+    _h = " "*30
+    for host_name, host_info in fetch_data.items():
+        if host_info["data"][0]["gpu_data"] != {}:
+            data = host_info["data"][0]
+            h = truncate_str(host_name, length=30, fill_char=" ", ellipsis="…", align_right=False)
+
+            for i, (gpu, status) in enumerate(data["gpu_data"].items()):
+                g = truncate_str("{:2d}:{}".format(status["device_num"], status["gpu_name"]),
+                                 length=27, fill_char=" ", ellipsis="…", align_right=False)
+                m = truncate_str("{:7d} / {:7d}".format(status["used_memory"], status["total_memory"]),
+                                 length=17, fill_char=" ", ellipsis="…", align_right=True)
+
+                info += "|{}|{}| {} |\n".format(h if i == 0 else _h, g, m)
+
+            info += "+------------------------------+---------------------------+-------------------+\n"
+        else:
+            st = truncate_str(host_info["status"], length=69, fill_char=" ", ellipsis="…", align_right=False)
+
+            # |   {host_name} ({host_ip}) last update: {}|
+            # 1<3><- min24 ->11<-max15->11<-    33     ->1
+            # it can use 38 char for host_name and host_ip
+            h = truncate_str(host_name, length=38-len(host_info["ip_address"]), fill_char=" ", ellipsis="…", align_right=False)
+            ip = truncate_str(host_info["ip_address"], length=len(host_info["ip_address"]), fill_char=" ", ellipsis="…", align_right=True)
+            ts = truncate_str(host_info["data"][0]["timestamp"], length=20, fill_char=" ", ellipsis="…", align_right=False)
+            info += "| status: {}|\n".format(st)
+            info += "|   {} ({}) last update: {}|\n".format(h, ip, ts)
+            info += "+------------------------------+---------------------------+-------------------+\n"
+
+    return info
+

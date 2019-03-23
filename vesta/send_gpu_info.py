@@ -119,6 +119,10 @@ def get_gpu_info(settings):
     return gpu_info_dict
 
 def register(settings, yaml_path):
+    """
+        register to server and get token.
+    """
+
     host_name = os.uname()[1]
 
     resp = requests.get("http{}://{}:{}/register/?host_name={}&token={}".format("s" if settings.USE_HTTPS else "", 
@@ -164,7 +168,7 @@ def send_info(settings):
                 NVIDIA_SMI                              :str
                 USE_HTTPS                               :bool
 
-            typically, I recommend using `argparse`
+            typically, I recommend using `argparse`.
             see `gpu_info_sender.py` for more detail.
     """
 
@@ -172,9 +176,10 @@ def send_info(settings):
 
     # in case it does not exist
     mkdir(settings.YAML_DIR)
+    
     if path_exist(yaml_path):
         with open(yaml_path, "r") as f:
-            yaml_data = yaml.load(f)
+            yaml_data = yaml.load(f, yaml.safe_load)
             if yaml_data is not None:
                 token = yaml_data["hash_key"]
             else:

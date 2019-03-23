@@ -26,6 +26,8 @@ PAGE_PER_HOST_NUM: 8
 PAGE_TITLE: "AWSOME GPUs"
 PAGE_DESCRIPTION: "awsome description"
 
+TIMESTAMP_FORMAT: "DMY"
+
 # you can notificate at slack
 SLACK_WEBHOOK: "https://hooks.slack.com/services/<your web hook>"
 # bot token

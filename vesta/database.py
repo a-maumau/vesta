@@ -21,40 +21,14 @@ class DataBase(object):
             args:
                 settings
                     settings must have following instance variable
-                        DB_NAME                                 :str
-                        DB_DIR                                  :str
-                        SERVER_NAME                             :str
-                        BIND_HOST                               :int
-                        TERM_WIDTH                              :int
-                        SERVER_SLEEP_TIME                       :int
-                        DOWN_TH                                 :int
-                        WS_RECEIVE_TIMEOUT                      :int
-                        SLACK_BOT_SLEEP_TIME                    :int
-                        SAVE_INTERVAL                           :int
-                        SORT_BY                                 :str
-                        IP                                      :str
-                        PORT_NUM                                :int
                         TOKEN                                   :str
                         PAGE_PER_HOST_NUM                       :int
-                        PAGE_TITLE                              :str
-                        PAGE_DESCRIPTION                        :str
-                        SLACK_WEBHOOK                           :str
-                        SLACK_BOT_TOKEN                         :str
-                        SLACK_BOT_POST_CHANNEL                  :str
-                        VALID_NETWORK                           :str
-                        SCHEDULE_FUNCTION                       :[str]
-                        REGISTER_UPLINK_MSG                     :str
-                        RE_UPLINK_MSG                           :str
-                        HOST_DOWN_MSG                           :str
-                        KEYWORD_CMD_PREFIX                      :str
-                        KEYWORD_PRINT_HOSTS                     :str
-                        KEYWORD_PRINT_ALL_HOSTS                 :str
-                        KEYWORD_PRINT_ALL_HOSTS_CMD             :str
-                        KEYWORD_PRINT_ALL_HOSTS_DETAIL          :str
-                        KEYWORD_PRINT_HELP                      :str
+                        TIMESTAMP_FORMAT                        :str -> choice ['YMD', 'MDY', 'DMY']
+                        SORT_BY                                 :str
+                        SAVE_INTERVAL                           :int
                         QUIET                                   :bool
 
-                    typically, I recommend using `argparse`
+                    typically, I recommend using `argparse`.
                     see `gpu_status_server.py` for more detail.
 
                 database_path: str
@@ -108,6 +82,8 @@ class DataBase(object):
         # host_order has the keys (host_name) in list.
         self.host_order = self.sort_func(self.host_list)
 
+        self.ts_format = self.settings.TIMESTAMP_FORMAT.lower()
+
     @property
     def total_page(self):
         return (len(self.host_order)//self.settings.PAGE_PER_HOST_NUM) + 1 if len(self.host_order)%self.settings.PAGE_PER_HOST_NUM != 0 else 0
@@ -146,10 +122,21 @@ class DataBase(object):
             return False
 
     def format_timestamp(self, ts):
-        # ex. 20181123204514 -> 2018/11/23 20:45:14
         ts = str(ts)
 
-        return "{}/{}/{} {}:{}:{}".format(ts[0:4], ts[4:6], ts[6:8], ts[8:10], ts[10:12], ts[12:14])
+        # ex. 20181123204514 -> 2018/11/23 20:45:14
+        if self.ts_format == "ymd":
+            return "{}/{}/{} {}:{}:{}".format(ts[0:4], ts[4:6], ts[6:8], ts[8:10], ts[10:12], ts[12:14])
+
+        # ex. 20181123204514 -> 11/23/2018 20:45:14
+        if self.ts_format == "mdy":
+            return "{}/{}/{} {}:{}:{}".format(ts[4:6], ts[6:8], ts[0:4], ts[8:10], ts[10:12], ts[12:14])
+
+        # ex. 20181123204514 -> 23/11/2018 20:45:14
+        if self.ts_format == "dmy":
+            return "{}/{}/{} {}:{}:{}".format(ts[6:8], ts[4:6], ts[0:4], ts[8:10], ts[10:12], ts[12:14])
+
+        return "{}/{}/{} {}:{}:{}".format(ts[4:6], ts[6:8], ts[0:4], ts[8:10], ts[10:12], ts[12:14])
 
     def create_new_host(self, host_id, host_name, host_ip):
         con = sqlite3.connect(self.database_path)
