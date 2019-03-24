@@ -151,7 +151,7 @@ def post_data(settings, token, yaml_path):
 
         # in case server has initialized the database
         if resp_dict["status_code"] == 404:
-            token = register(yaml_path)
+            token = register(settings, yaml_path)
             resp = requests.post("http{}://{}:{}/update/host/{}?token={}".format("s" if settings.USE_HTTPS else "",
                                                                                  settings.IP, settings.PORT_NUM, token, settings.TOKEN),
                                  data=json.dumps(content), headers={'Content-Type': 'application/json'})
@@ -176,14 +176,14 @@ def send_info(settings):
 
     # in case it does not exist
     mkdir(settings.YAML_DIR)
-    
+
     if path_exist(yaml_path):
         with open(yaml_path, "r") as f:
             yaml_data = yaml.load(f, yaml.safe_load)
             if yaml_data is not None:
                 token = yaml_data["hash_key"]
             else:
-                token = register(settings, yaml_path, settings.USE_HTTPS)
+                token = register(settings, yaml_path)
     else:
         token = register(settings, yaml_path)
 

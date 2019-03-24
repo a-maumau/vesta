@@ -89,6 +89,7 @@ class SlackBot(object):
                                     if status["processes"] != []:
                                         msg += "    [{} ({})] {}\n".format(gpu, status["gpu_name"], status["timestamp"])
                                         msg += format_process_str(status["processes"], add_before="        ")
+                        msg += "\n"
                     
                     self.send_snippet(msg, req_channel, req_host, req_host)
 

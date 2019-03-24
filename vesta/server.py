@@ -429,6 +429,7 @@ class MainView(FlaskView):
     @route('/gpu_table', methods=["GET"])
     def get_gpu_table(self):
         """
+            send back all machine's gpu info.
         """
 
         if request.args.get('term', default=False, type=bool):
@@ -523,7 +524,6 @@ class HTTPServer(object):
 
                     typically, I recommend using `argparse`.
                     see `gpu_status_server.py` for more detail.
-
         """
 
         self.settings = settings

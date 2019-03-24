@@ -40,7 +40,8 @@ class DataBase(object):
 
         # host_list will be like
         """
-        {   "host1":{
+        {   
+            "host1":{
                 "name":"host1",                 # str
                 "ip_address":"127.0.0.2",       # str
                 "last_update":0,                # float
@@ -63,12 +64,12 @@ class DataBase(object):
         cur = con.cursor()
 
         if self.is_machine_table_exist():
-            # database is recoreded in each table for each machine,
+            # data is recoreded in each table for each machine,
             # we need the machine list.
             cur.execute("select * from machines;")
             result = cur.fetchall()
             for data in result:
-                #{hash key: host_name}
+                # {hash key: host_name}
                 self.host_list[data[0]] = {"name":data[1], "ip_address":data[2], "last_update":0, "last_touch":0, "status":env.SERVER_WAITING_UPLINK, "cache_data":None}
                 self.name_to_hash_table[data[1]] = data[0]
             
@@ -342,7 +343,7 @@ class DataBase(object):
             return False
 
     def add_host(self, host_id, host_name, host_ip):
-        tn = time.time()
+        tn = time.time()-self.settings.SAVE_INTERVAL
         self.host_list[host_id] = {"name":host_name, "ip_address":host_ip, "last_update":tn, "last_touch":tn, "status":env.SERVER_AVAILABLE}
         self.name_to_hash_table[host_name] = host_id
         self.host_order = self.sort_func(self.host_list)
@@ -353,8 +354,13 @@ class DataBase(object):
 
         self.host_list[host_id]["status"] = env.SERVER_AVAILABLE
         self.host_list[host_id]["last_touch"] = tn
+        self.host_list[host_id]["cache_data"] = {"timestamp":int(datetime.now().strftime("%Y%m%d%H%M%S")), "data":data}
+
+        print(tn)
+        print(self.host_list[host_id]["last_update"])
 
         if tn - self.host_list[host_id]["last_update"] >= self.settings.SAVE_INTERVAL:
+            self.host_list[host_id]["last_update"] = tn
 
             con = sqlite3.connect(self.database_path)
             cur = con.cursor()
@@ -365,14 +371,8 @@ class DataBase(object):
             con.commit()
             con.close()
 
-            self.host_list[host_id]["last_update"] = tn
-
-        else:
-            self.host_list[host_id]["cache_data"] = {"timestamp":int(datetime.now().strftime("%Y%m%d%H%M%S")), "data":data}
-
     def touch_data(self, host_id):
         self.host_list[host_id]["last_touch"] = time.time()
-
 
     def compress_data(self, data):
         return bz2.compress(pickle.dumps(data, pickle.HIGHEST_PROTOCOL))

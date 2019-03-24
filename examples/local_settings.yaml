@@ -1,15 +1,4 @@
-# in sec.
-WS_RECEIVE_TIMEOUT: 1
-
-# in sec.
-SLACK_BOT_SLEEP_TIME: 1
-
-# at least interval time for saving data (in sec.)
-# if you want to save all data, set this to 0
-SAVE_INTERVAL: 60
-
-# sort type, "ip" or "name"
-SORT_BY: "ip"
+# every key must be in capital letter
 
 # this ip address is the server address for the client which send the gpu information
 IP: "127.0.0.1"
@@ -23,8 +12,10 @@ TOKEN: '0000'
 # how many information to read in each page
 PAGE_PER_HOST_NUM: 8
 
-PAGE_TITLE: "AWSOME GPUs"
-PAGE_DESCRIPTION: "awsome description"
+MAIN_PAGE_TITLE: "AWSOME GPUs"
+MAIN_PAGE_DESCRIPTION: "awsome description"
+TABLE_PAGE_TITLE: "AWSOME Table"
+TABLE_PAGE_DESCRIPTION: "awsome description"
 
 TIMESTAMP_FORMAT: "DMY"
 
@@ -39,7 +30,7 @@ SLACK_BOT_POST_CHANNEL: "your channel"
 # it will be used in re.search, so you can use regular expression
 VALID_NETWORK: "127.0.0.1"
 
-# you can use python schedule module to schedule the announcement of somethin
+# you can use python schedule module to schedule the announcement of something
 # in this case, it will use the function self.send_hosts_statuses for every day at00:00 
 # must be a array
 SCHEDULE_FUNCTION:
