@@ -6,7 +6,7 @@ This script is depending on `Python3`, and `nvidia-smi`, `awk`, `ps` commands.
 pip install -r requirements.txt
 ```  
 If there is a missing package, please install by yourself using pip.  
-also you might need setup configuration for your own environment.   
+Also you might need to setup some configurations for your own environment.   
 
 # Configuration
 When using `gpu_status_server.py` and `gpu_info_sender.py`, there are many options to change the settings, or you can use .yaml file for overwriting the arguments.  
@@ -146,15 +146,15 @@ Json response is like
 ```
 
 # Slack Notification
-If you set slack's webhook and bot setting, you can receive notification at slack.  
+If you set slack's webhook and bot setting, you can receive notification via slack.  
 ## up and down
 ![sample notification image](imgs/noti_up_down_sample_resized.png "notificate_up_and_down")  
   
 ## interact with bot
 ![sample interact image](imgs/bot_interact_sample_resized.png "bot_interact")  
   
-for specifying slack setting, use `--slack_webhook`, `--slack_bot_token`, and `--slack_bot_post_channel` for `gpu_status_server.py`.  
-Or you can set in .yaml file, see `example/local_settings.yaml`  
+For specifying slack setting, use `--slack_webhook`, `--slack_bot_token`, and `--slack_bot_post_channel` for `gpu_status_server.py`.  
+Or you can use .yaml file, see `example/local_settings.yaml`  
 
 # Topology
 Topology is very simple, Master (server) and Slave (each local machine) style, but it is ad hoc.  
