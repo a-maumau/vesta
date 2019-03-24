@@ -6,9 +6,15 @@ This script is depending on `Python3`, and `nvidia-smi`, `awk`, `ps` commands.
 pip install -r requirements.txt
 ```  
 If there is a missing package, please install by yourself using pip.  
-also you need setup vesta/settings.py for your environment.   
+Also you might need to setup some configurations for your own environment.   
+
+# Configuration
+When using `gpu_status_server.py` and `gpu_info_sender.py`, there are many options to change the settings, or you can use .yaml file for overwriting the arguments.  
+Use `-h` to see all arguments and use `--local_settings_yaml_path` option to overwrite.  
+Example is in `example/local_settings.yaml`  
 
 # Usage
+You can use simple wrapper,  
 for Server  
 ```
 python gpu_status_server.py
@@ -19,17 +25,27 @@ for Nodes
 python gpu_info_sender.py
 ```  
    
-For automatical process, using systemd and crontab will do the works.  
+For automation, using systemd and crontab will do the work.  
 
 ## from Terminal
 To get GPU information from terminal app, use curl and access `http://<server_address>/?term=true`.  
 You will get like  
 ```
 $ curl "http://0.0.0.0:8080/?term=true"
++------------------------------------------------------------------------------+
+| vesta ver. 1.0.0                                                   gpu info. |
 +------------------+------------------------+-----------------+--------+-------+
 | host             | gpu                    | memory usage    | volat. | temp. |
 +------------------+------------------------+-----------------+--------+-------+
-|host1             | 0:GeForce GTX 1080 Ti  |    235 /  11169 |     0 %|  36 °C|
+|mau_local         | 0:GeForce GTX 1080 Ti  |   8018 /  11169 |     0 %|  80 °C|
+|                  | 1:GeForce GTX 1080 Ti  |      2 /  11172 |     0 %|  38 °C|
++------------------+------------------------+-----------------+--------+-------+
+|mau_local_11a7c5eb| 0:GeForce GTX 1080 Ti  |   8018 /  11169 |    92 %|  80 °C|
+|                  | 1:GeForce GTX 1080 Ti  |      2 /  11172 |     0 %|  38 °C|
++------------------+------------------------+-----------------+--------+-------+
+|mau_local_ac993634| 0:GeForce GTX 1080 Ti  |   8018 /  11169 |    92 %|  80 °C|
+|                  | 1:GeForce GTX 1080 Ti  |      2 /  11172 |     0 %|  38 °C|
+|                  | 1:GeForce GTX 1080 Ti  |      2 /  11172 |     0 %|  38 °C|
 |                  | 1:GeForce GTX 1080 Ti  |      2 /  11172 |     0 %|  38 °C|
 +------------------+------------------------+-----------------+--------+-------+
 ```
@@ -38,25 +54,25 @@ If you want to see detail information you can use `detail` option like `http://<
 You will get like  
 ```
 $ curl "http://0.0.0.0:8080/?term=true&detail=true"
+vesta ver. 1.0.0
 
-### host1 :: 127.0.0.1 #########################################################
-  last update: 2018/12/03 23:16:59
+#### mau_local_19e5d26c :: 127.0.0.1 ###########################################
+  last update: 24/03/2019 20:27:10
 --------------------------------------------------------------------------------
-  ┌[ gpu:0 GeForce GTX 1080 Ti 2018/12/01 14:32:37.140 ]─────────────────────┐
+  ┌[ gpu:0 GeForce GTX 1080 Ti 2019/03/24 20:00:00.000 ]─────────────────────┐
   │      memory used  memory available  gpu volatile  temperature            │
-  │   235 / 11169MiB          10934MiB            0%         36°C            │
+  │  8018 / 11169MiB           3151MiB           92%         80°C            │
   │                                                                          │
-  │ mem [/                                                            ]   2% │
-  │  ├── /usr/bin/X                   148MiB                                 │
-  │  └── compiz                        84MiB                                 │
+  │ mem [///////////////////////////////////////////                  ]  71% │
+  │  ├── train1                      6400MiB root                            │
+  │  └── train2                      1618MiB user1                           │
   └──────────────────────────────────────────────────────────────────────────┘
 
-  ┌[ gpu:1 GeForce GTX 1080 Ti 2018/12/01 14:32:37.141 ]─────────────────────┐
+  ┌[ gpu:1 GeForce GTX 1080 Ti 2019/03/24 20:00:00.000 ]─────────────────────┐
   │      memory used  memory available  gpu volatile  temperature            │
   │     2 / 11172MiB          11170MiB            0%         38°C            │
   │                                                                          │
   │ mem [                                                             ]   0% │
-  │  └── /usr/bin/X                   148MiB                                 │
   └──────────────────────────────────────────────────────────────────────────┘
 
 ________________________________________________________________________________
@@ -72,7 +88,7 @@ Just access `http://<server_address>/`
 You will get like  
 ![sample web broser image](imgs/browser_sample_resized.png "sample")
   
-# Response
+# API Response 
 User can get the information of GPU by accessing `http://<server_address>/states/`.  
 Json response is like
 ```
@@ -85,28 +101,29 @@ Json response is like
                 {   # each GPU will be denote by "gpu:<device_num>"
                     'gpu_data':{
                         'gpu:0':{'available_memory': '10934',
-                        'device_num': '0',
+                            'device_num': 0,
                             'gpu_name': 'GeForce GTX 1080 Ti',
-                            'gpu_volatile': '0',
+                            'gpu_volatile': 92,
                             'processes': [
-                                {
-                                    'name': '/usr/bin/X',
-                                    'pid': '1963',
-                                    'used_memory': '148',
+                                  {
+                                    'name': 'train1',
+                                    'pid': "31415",
+                                    'used_memory': 6400,
                                     'user': 'root'
-                                },
-                                {
-                                    'name': 'compiz',
-                                    'pid': '3437',
-                                    'used_memory': '84',
+                                  },
+                                  {
+                                    'name': 'train2',
+                                    'pid': "27182",
+                                    'used_memory': 1618,
                                     'user': 'user1'
-                                }
+                                  }
                             ],
-                            'temperature': '36',
-                            'timestamp': '2018/11/30 23:29:47.115',
-                            'total_memory': '11169',
-                            'used_memory': '235',
-                            'uuid': 'GPU-...'},
+                            'temperature': 80,
+                            'timestamp': '2019/03/24 20:00:00.000',
+                            'total_memory': 11169,
+                            'used_memory': 8018,
+                            'uuid': 'GPU-...'
+                        },
                         'gpu:1':{
                             'available_memory': '11170',
                             'device_num': '1',
@@ -127,6 +144,17 @@ Json response is like
     "host2":{...}
 }
 ```
+
+# Slack Notification
+If you set slack's webhook and bot setting, you can receive notification via slack.  
+## up and down
+![sample notification image](imgs/noti_up_down_sample_resized.png "notificate_up_and_down")  
+  
+## interact with bot
+![sample interact image](imgs/bot_interact_sample_resized.png "bot_interact")  
+  
+For specifying slack setting, use `--slack_webhook`, `--slack_bot_token`, and `--slack_bot_post_channel` for `gpu_status_server.py`.  
+Or you can use .yaml file, see `example/local_settings.yaml`  
 
 # Topology
 Topology is very simple, Master (server) and Slave (each local machine) style, but it is ad hoc.  
@@ -161,4 +189,4 @@ Table field is
 | timestamp_n | data_n |
   
 `timestamp` is based on server time zone and the style is "YYYYMMDDhhmmss".  
-`data` is a Python dict object while it is serialized and compressed by Python bz2.  
+`data` is a Python dict object while it is serialized and compressed by Python pickle and bz2.  

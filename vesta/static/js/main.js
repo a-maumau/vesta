@@ -275,10 +275,13 @@ function update(update_data){
             _element_data = fetch_content_element(host_name);
             if(_element_data["found"]){
                 insert_head.after(_element_data["element"]);
+                
                 set_collapsible(host_name);
                 init_chart(host_name, update_data["update"][host_name]);
+                
                 insert_head = host_entry_head.find("#"+host_name+"_hr");
                 page_content_del_list = page_content_del_list.filter(function(x){return x !=host_name});
+                
                 // replace with updated data
                 page_data[host_name] = update_data["update"][host_name];
             }else{
@@ -288,8 +291,10 @@ function update(update_data){
         }else{
             // if update exist, then update it.
             if(host_name in update_data["update"]){
+                // if status is changed.
                 if(update_data["update"][host_name]["status"] != page_data[host_name]["status"]){
                     _element_data = fetch_content_element(host_name);
+                    $("#"+host_name+"_hr").remove();
                     $("#"+host_name).replaceWith(_element_data["element"]);
                     set_collapsible(host_name);
                     init_chart(host_name, update_data["update"][host_name]);

@@ -21,40 +21,14 @@ class DataBase(object):
             args:
                 settings
                     settings must have following instance variable
-                        DB_NAME                                 :str
-                        DB_DIR                                  :str
-                        SERVER_NAME                             :str
-                        BIND_HOST                               :int
-                        TERM_WIDTH                              :int
-                        SERVER_SLEEP_TIME                       :int
-                        DOWN_TH                                 :int
-                        WS_RECEIVE_TIMEOUT                      :int
-                        SLACK_BOT_SLEEP_TIME                    :int
-                        SAVE_INTERVAL                           :int
-                        SORT_BY                                 :str
-                        IP                                      :str
-                        PORT_NUM                                :int
                         TOKEN                                   :str
                         PAGE_PER_HOST_NUM                       :int
-                        PAGE_TITLE                              :str
-                        PAGE_DESCRIPTION                        :str
-                        SLACK_WEBHOOK                           :str
-                        SLACK_BOT_TOKEN                         :str
-                        SLACK_BOT_POST_CHANNEL                  :str
-                        VALID_NETWORK                           :str
-                        SCHEDULE_FUNCTION                       :[str]
-                        REGISTER_UPLINK_MSG                     :str
-                        RE_UPLINK_MSG                           :str
-                        HOST_DOWN_MSG                           :str
-                        KEYWORD_CMD_PREFIX                      :str
-                        KEYWORD_PRINT_HOSTS                     :str
-                        KEYWORD_PRINT_ALL_HOSTS                 :str
-                        KEYWORD_PRINT_ALL_HOSTS_CMD             :str
-                        KEYWORD_PRINT_ALL_HOSTS_DETAIL          :str
-                        KEYWORD_PRINT_HELP                      :str
+                        TIMESTAMP_FORMAT                        :str -> choice ['YMD', 'MDY', 'DMY']
+                        SORT_BY                                 :str
+                        SAVE_INTERVAL                           :int
                         QUIET                                   :bool
 
-                    typically, I recommend using `argparse`
+                    typically, I recommend using `argparse`.
                     see `gpu_status_server.py` for more detail.
 
                 database_path: str
@@ -66,7 +40,8 @@ class DataBase(object):
 
         # host_list will be like
         """
-        {   "host1":{
+        {   
+            "host1":{
                 "name":"host1",                 # str
                 "ip_address":"127.0.0.2",       # str
                 "last_update":0,                # float
@@ -89,12 +64,12 @@ class DataBase(object):
         cur = con.cursor()
 
         if self.is_machine_table_exist():
-            # database is recoreded in each table for each machine,
+            # data is recoreded in each table for each machine,
             # we need the machine list.
             cur.execute("select * from machines;")
             result = cur.fetchall()
             for data in result:
-                #{hash key: host_name}
+                # {hash key: host_name}
                 self.host_list[data[0]] = {"name":data[1], "ip_address":data[2], "last_update":0, "last_touch":0, "status":env.SERVER_WAITING_UPLINK, "cache_data":None}
                 self.name_to_hash_table[data[1]] = data[0]
             
@@ -107,6 +82,8 @@ class DataBase(object):
 
         # host_order has the keys (host_name) in list.
         self.host_order = self.sort_func(self.host_list)
+
+        self.ts_format = self.settings.TIMESTAMP_FORMAT.lower()
 
     @property
     def total_page(self):
@@ -146,10 +123,21 @@ class DataBase(object):
             return False
 
     def format_timestamp(self, ts):
-        # ex. 20181123204514 -> 2018/11/23 20:45:14
         ts = str(ts)
 
-        return "{}/{}/{} {}:{}:{}".format(ts[0:4], ts[4:6], ts[6:8], ts[8:10], ts[10:12], ts[12:14])
+        # ex. 20181123204514 -> 2018/11/23 20:45:14
+        if self.ts_format == "ymd":
+            return "{}/{}/{} {}:{}:{}".format(ts[0:4], ts[4:6], ts[6:8], ts[8:10], ts[10:12], ts[12:14])
+
+        # ex. 20181123204514 -> 11/23/2018 20:45:14
+        if self.ts_format == "mdy":
+            return "{}/{}/{} {}:{}:{}".format(ts[4:6], ts[6:8], ts[0:4], ts[8:10], ts[10:12], ts[12:14])
+
+        # ex. 20181123204514 -> 23/11/2018 20:45:14
+        if self.ts_format == "dmy":
+            return "{}/{}/{} {}:{}:{}".format(ts[6:8], ts[4:6], ts[0:4], ts[8:10], ts[10:12], ts[12:14])
+
+        return "{}/{}/{} {}:{}:{}".format(ts[4:6], ts[6:8], ts[0:4], ts[8:10], ts[10:12], ts[12:14])
 
     def create_new_host(self, host_id, host_name, host_ip):
         con = sqlite3.connect(self.database_path)
@@ -355,7 +343,7 @@ class DataBase(object):
             return False
 
     def add_host(self, host_id, host_name, host_ip):
-        tn = time.time()
+        tn = time.time()-self.settings.SAVE_INTERVAL
         self.host_list[host_id] = {"name":host_name, "ip_address":host_ip, "last_update":tn, "last_touch":tn, "status":env.SERVER_AVAILABLE}
         self.name_to_hash_table[host_name] = host_id
         self.host_order = self.sort_func(self.host_list)
@@ -366,8 +354,13 @@ class DataBase(object):
 
         self.host_list[host_id]["status"] = env.SERVER_AVAILABLE
         self.host_list[host_id]["last_touch"] = tn
+        self.host_list[host_id]["cache_data"] = {"timestamp":int(datetime.now().strftime("%Y%m%d%H%M%S")), "data":data}
+
+        print(tn)
+        print(self.host_list[host_id]["last_update"])
 
         if tn - self.host_list[host_id]["last_update"] >= self.settings.SAVE_INTERVAL:
+            self.host_list[host_id]["last_update"] = tn
 
             con = sqlite3.connect(self.database_path)
             cur = con.cursor()
@@ -378,14 +371,8 @@ class DataBase(object):
             con.commit()
             con.close()
 
-            self.host_list[host_id]["last_update"] = tn
-
-        else:
-            self.host_list[host_id]["cache_data"] = {"timestamp":int(datetime.now().strftime("%Y%m%d%H%M%S")), "data":data}
-
     def touch_data(self, host_id):
         self.host_list[host_id]["last_touch"] = time.time()
-
 
     def compress_data(self, data):
         return bz2.compress(pickle.dumps(data, pickle.HIGHEST_PROTOCOL))
