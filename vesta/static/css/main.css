@@ -14,6 +14,8 @@
 
     --info_table_head_color: #5bb;
     --sub_info_table_head_color: #ff3a6a;
+    --gpu_table_gpu_head_fg_color: #ff3a6a;
+    --gpu_table_gpu_head_bg_color: #FFFFFF;
 
     --tc_free_mem_width: 120px;
     --tc_volatile_width: 80px;
@@ -21,6 +23,10 @@
     --tc_gpu_name_width: 95px;
     --tc_command_name_width: 180px;
     --tc_user_name_width: 100px;
+
+    --gt_gpu_id_width: 80px;
+    --gt_gpu_name_width: 200px;
+    --gt_gpu_mem_size_width: 180px;
 
     --table_area_detail_info_height: 200px;
     --gpu_memory_deatil_height: 220px;
@@ -194,6 +200,14 @@ p.gpu_info_text{
     width: var(--tc_user_name_width);
 }
 
+.gt_gpu_id {
+    width: var(--gt_gpu_id_width);
+}
+
+.gt_gpu_mem_size {
+    width: var(--gt_gpu_mem_size_width);
+}
+
 .table_area_sub_info {
     max-height: var(--entry_head_height);
     width: 98%;
@@ -217,6 +231,11 @@ p.gpu_info_text{
     width: 100%;
 }
 
+.info_table.gpu_table .gpu_table_gpu_head {
+    color: var(--gpu_table_gpu_head_fg_color);
+    background-color: var(--gpu_table_gpu_head_bg_color);
+}
+
 .info_table {
     font-size: 14px;
     width: 100%;
@@ -236,19 +255,46 @@ p.gpu_info_text{
     color: #fff;
 }
 
+.info_table.gpu_table thead {
+    background-color: var(--sub_info_table_head_color);
+    color: #fff;
+}
+
 .info_table thead {
     background-color: var(--info_table_head_color);
     color: #fff;
 }
+
 .info_table th {
     margin-bottom: 9px;
     padding: 6px 12px;
-    border-left: 1px #4bb solid;
+    border-left: 1px #ddd solid;
+    font-weight: normal;
+}
+
+.info_table th {
+    margin-bottom: 9px;
+    padding: 6px 12px;
+    border-left: 1px #ddd solid;
+    font-weight: normal;
+}
+
+.info_table .gpu_table th {
+    margin-bottom: 9px;
+    padding: 6px 12px;
+    border-left: 1px #ddd solid;
     font-weight: normal;
 }
 
 .info_table th:first-child {
     border-left-width: 0;
+}
+
+.info_table th.gpu_table_noborder{
+    margin-bottom: 9px;
+    padding: 6px 12px;
+    border-left: none;
+    font-weight: normal;   
 }
 
 .info_table tbody {
@@ -345,6 +391,18 @@ p.gpu_info_text{
         font-weight: normal;
     }
 
+    .gpu_table tbody td:before {
+        padding-left: 25px;
+        display: inline-block;
+        vertical-align: middle;
+        *vertical-align: auto;
+        *zoom: 1;
+        *display: inline;
+        margin-right: 5px;
+        color: #888;
+        font-weight: normal;
+    }
+
     /* add head name to content*/
     .table_area_detail_info .info_table tbody td:nth-of-type(2):before {
         content: "User: ";
@@ -401,7 +459,7 @@ p.gpu_info_text{
     }
 
     .info_table tr:nth-child(even) {
-        background-color: #eaeaea;
+        background-color: #e8e8e8;
     }
     .info_table td {
         white-space: nowrap;

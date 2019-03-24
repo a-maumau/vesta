@@ -13,17 +13,30 @@ if __name__ == '__main__':
                         help='yaml file path which overwrite the contents args.')
 
     # args for server
-    parser.add_argument('--db_name', dest='DB_NAME', type=str, default="gpu_states.db", help='database name.')
-    parser.add_argument('--db_dir', dest='DB_DIR', type=str, default="data", help='dir of database.')
+    parser.add_argument('--ip', dest='IP', type=str, default="127.0.0.1",
+                        help='this ip address is the server address for the client which send the gpu information.\nit is mainly for a machine which is sending the data to server.')
+    parser.add_argument('--port_num', dest='PORT_NUM', type=int, default=8080, help="server's open port.")
+    parser.add_argument('--token', dest='TOKEN', type=str, default="0000",
+                        help="url parameter token for posting data.\nwhatever you want, actually it's doing nothing now. it is only for preventing accidental posting.")
     parser.add_argument('--server_name', dest='SERVER_NAME', type=str, default="gpu_monitor", help='')
     parser.add_argument('--bind_host', dest='BIND_HOST', type=str, default="0.0.0.0",
                         help='bind host IP address.\nthis should be 0.0.0.0.\nif you want to filter IP addresses, use `--valid_network`.')
 
-    # ssl settings certfile, keyfile=None, password
-    parser.add_argument('--ssl_cert', dest='SSL_CERT', type=str, default=None, help='path of ssl certificate file.')
-    parser.add_argument('--ssl_key', dest='SSL_KEY', type=str, default=None, help='path for ssl key file.')
+    parser.add_argument('--db_name', dest='DB_NAME', type=str, default="gpu_states.db", help='database name.')
+    parser.add_argument('--db_dir', dest='DB_DIR', type=str, default="data", help='dir of database.')
+    parser.add_argument('--timestamp_format', dest='TIMESTAMP_FORMAT', type=str, default="MDY", choices=['YMD', 'MDY', 'DMY'],
+                        help='timestamp format. default is `MM/DD/YYYY`. choose from `YMD`, `MDY` or `DMY`.')
+
+    parser.add_argument('--page_per_host_num', dest='PAGE_PER_HOST_NUM', type=int, default=8,
+                        help='how many information to read in each page.\nit is controlling the view of html page.')
+    parser.add_argument('--main_page_title', dest='MAIN_PAGE_TITLE', type=str, default="GPU info", help='page title of main page.')
+    parser.add_argument('--main_page_description', dest='MAIN_PAGE_DESCRIPTION', type=str, default="", help='page description of main page.')
+    parser.add_argument('--table_page_title', dest='TABLE_PAGE_TITLE', type=str, default="GPU Table", help='page title of gpu table page.')
+    parser.add_argument('--table_page_description', dest='TABLE_PAGE_DESCRIPTION', type=str, default="", help='page description of gpu table page.')
 
     parser.add_argument('--term_width', dest='TERM_WIDTH', type=int, default=80, help='width of terminal printing.')
+    parser.add_argument('--sort_by', dest='SORT_BY', type=str, default="ip", choices=['ip', 'name'],
+                        help='sort type of machine arrangement. choice from `ip` or `name`.')
 
     # args for waching part
     parser.add_argument('--server_sleep_time', dest='SERVER_SLEEP_TIME', type=int, default=5, help='server sleeping time in sec.')
@@ -34,20 +47,6 @@ if __name__ == '__main__':
     parser.add_argument('--slack_bot_sleep_time', dest='SLACK_BOT_SLEEP_TIME', type=int, default=1, help="slack bot's waiting time (response time) in sec.")
     parser.add_argument('--save_interval', dest='SAVE_INTERVAL', type=int, default=60,
                         help='at least interval time for saving data in sec.\nthis is for controlling the data which is will save in database. if you want to save all data, set this to 0.')
-
-    parser.add_argument('--sort_by', dest='SORT_BY', type=str, default="ip", choices=['ip', 'name'],
-                        help='sort type of machine arrangement. choice from `ip` or `name`.')
-
-    parser.add_argument('--ip', dest='IP', type=str, default="127.0.0.1",
-                        help='this ip address is the server address for the client which send the gpu information.\nit is mainly for a machine which is sending the data to server.')
-    parser.add_argument('--port_num', dest='PORT_NUM', type=int, default=8080, help="server's open port.")
-    parser.add_argument('--token', dest='TOKEN', type=str, default="0000",
-                        help="url parameter token for posting data.\nwhatever you want, actually it's doing nothing now. it is only for preventing accidental posting.")
-
-    parser.add_argument('--page_per_host_num', dest='PAGE_PER_HOST_NUM', type=int, default=8,
-                        help='how many information to read in each page.\nit is controlling the view of html page.')
-    parser.add_argument('--page_title', dest='PAGE_TITLE', type=str, default="GPUs", help='page title of html page.')
-    parser.add_argument('--page_description', dest='PAGE_DESCRIPTION', type=str, default="", help='page description of html page.')
     
     parser.add_argument('--slack_webhook', dest='SLACK_WEBHOOK', type=str, default="",
                         help='for slack notification. set a webhook url.\nit will send a up/down notification to this webhook.')
@@ -62,7 +61,7 @@ if __name__ == '__main__':
     parser.add_argument('--shedule_function', dest='SCHEDULE_FUNCTION', type=str, nargs='*', default=[],
                         help="if you want send shceduled status report, use this function.\nyou can use python schedule module to schedule the announcement of something like `'schedule.every().day.at('00:00').do(self.send_hosts_statuses, 'SCHEDULED_STATUS_REPORT')'`. this will go through `exec()` be careful.")
 
-    # notification message ########################################
+    # notification message
     parser.add_argument('--register_uplink_msg', dest='REGISTER_UPLINK_MSG', type=str, default="⬆︎⬆︎⬆︎ `Uplink` Detected - New uplink from `{}`. Hello!",
                         help='notification message of new host came.\nif you use {} it will be filled with `host name`')
     parser.add_argument('--re_uplink_msg', dest='RE_UPLINK_MSG', type=str, default="⬆︎⬆︎⬆︎ `  Up  ` Detected - Uplink from `{}`. Welcome back!",
@@ -85,17 +84,18 @@ if __name__ == '__main__':
 
     parser.add_argument('-quiet', dest='QUIET', action="store_true", default=False, help='show only critical error message.')
 
-    settings = parser.parse_args()
+    # ssl settings certfile, keyfile=None, password
+    """
+    parser.add_argument('--ssl_cert', dest='SSL_CERT', type=str, default=None, help='path of ssl certificate file.')
+    parser.add_argument('--ssl_key', dest='SSL_KEY', type=str, default=None, help='path for ssl key file.')
+    """
 
-    ssl_context = None
-    if settings.SSL_CERT is not None:
-        ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
-        ssl_context.load_cert_chain(settings.SSL_CERT, settings.SSL_KEY)
+    settings = parser.parse_args()
 
     if settings.local_settings_yaml_path is not None:
         try:
             with open(settings.local_settings_yaml_path, "r") as yaml_file:
-                yaml_data = yaml.load(yaml_file)
+                yaml_data = yaml.load(yaml_file, yaml.FullLoader)
         except Exception as e:
             print(e)
             yaml_data = []
@@ -104,8 +104,5 @@ if __name__ == '__main__':
             if arg_key in settings:
                 setattr(settings, arg_key, yaml_data[arg_key])
 
-    print(settings.SCHEDULE_FUNCTION)
-
     server = HTTPServer(settings)
-    server.start(ssl_context=ssl_context)
-    server.watch_and_sleep()
+    server.start()

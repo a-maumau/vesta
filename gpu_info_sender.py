@@ -25,7 +25,7 @@ if __name__ == '__main__':
     if settings.local_settings_yaml_path is not None:
         try:
             with open(settings.local_settings_yaml_path, "r") as yaml_file:
-                yaml_data = yaml.load(yaml_file)
+                yaml_data = yaml.load(yaml_file, yaml.safe_load)
         except Exception as e:
             print(e)
             yaml_data = []

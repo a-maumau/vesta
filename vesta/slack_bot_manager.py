@@ -31,8 +31,8 @@ class SlackBot(object):
                         KEYWORD_PRINT_HELP                      :str
                         QUIET                                   :bool
 
-                typically, I recommend using `argparse`
-                see `gpu_status_server.py`
+                    typically, I recommend using `argparse`.
+                    see `gpu_status_server.py` for more detail.
         """
 
         self.settings = settings
@@ -89,6 +89,7 @@ class SlackBot(object):
                                     if status["processes"] != []:
                                         msg += "    [{} ({})] {}\n".format(gpu, status["gpu_name"], status["timestamp"])
                                         msg += format_process_str(status["processes"], add_before="        ")
+                        msg += "\n"
                     
                     self.send_snippet(msg, req_channel, req_host, req_host)
 
@@ -202,9 +203,10 @@ class SlackBot(object):
                     self.response(req)
                     time.sleep(self.settings.SLACK_BOT_SLEEP_TIME)
 
-                time.sleep(10)
+                time.sleep(300)
                 if not self.client.rtm_connect(auto_reconnect=True):
-                    raise Exception("Connection Failed")
+                    #raise Exception("Connection Failed")
+                    print("Slack bot: Connection Failed.")
 
         else:
             print("Connection Failed")

@@ -4,10 +4,14 @@ import json
 import time
 import random
 import schedule
-import argparse
 import requests
 import threading
 from datetime import datetime
+
+# need some patch
+# https://github.com/miguelgrinberg/Flask-SocketIO/issues/65
+from gevent import monkey
+monkey.patch_all()
 
 # flask
 import ssl
@@ -27,11 +31,6 @@ from .path_util import *
 from .format_str import *
 from .terminal_color import *
 
-# need some patch
-# https://github.com/miguelgrinberg/Flask-SocketIO/issues/65
-from gevent import monkey
-monkey.patch_all()
-
 def create_response_403(info_msg="forbidden"):
     return json.dumps({"status":"ERROR", "status_code":403, "info":"{}".format(info_msg)})
 
@@ -47,6 +46,24 @@ def send_uplink_detection(settings, msg, host_name):
         except Exception as e:
             if not settings.QUIET:
                 print(e)
+
+def create_timestamp(timestamp_format):
+    timestamp_format_sc = timestamp_format.lower()
+
+    # ex. 20181123204514 -> 2018/11/23 20:45:14
+    if timestamp_format_sc == "ymd":
+        return datetime.now().strftime("%Y/%m/%d %H:%M:%S")
+
+    # ex. 20181123204514 -> 11/23/2018 20:45:14
+    elif timestamp_format_sc == "mdy":
+        return datetime.now().strftime("%m/%d/%Y %H:%M:%S")
+
+    # ex. 20181123204514 -> 23/11/2018 20:45:14
+    elif timestamp_format_sc == "dmy":
+        return datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+
+    # "MDY"
+    return datetime.now().strftime("%m/%d/%Y %H:%M:%S")
 
 """
     # this part is not looking good... should be merged?
@@ -120,6 +137,7 @@ class StatesView(FlaskView):
     """
 
     database = None
+    term_width = 80
 
     @classmethod
     def init(cls, settings, database, term_width=80):
@@ -205,7 +223,8 @@ class RegisterView(FlaskView):
             self.database.add_host(hash_key, name, request.remote_addr)
 
             if not self.settings.QUIET:
-                print("[ {} ] {}{}register: {}[{}] hash:{}{}{}".format(datetime.now().strftime("%Y%m%d %H:%M:%S"),
+                ts = create_timestamp(self.settings.TIMESTAMP_FORMAT)
+                print("[ {} ] {}{}register: {}[{}] hash:{}{}{}".format(ts,
                                                                        terminal_bg.BLUE, terminal_fg.WHITE, 
                                                                        name, request.remote_addr, hash_key,
                                                                        terminal_fg.END, terminal_bg.END))
@@ -259,13 +278,15 @@ class UpdateView(FlaskView):
         if self.database.host_list[hash_key]["status"] in env.STATUS_BAD:
             send_uplink_detection(self.settings, self.settings.RE_UPLINK_MSG, host_name)
             if not self.settings.QUIET:
-                print("[ {} ] {}{}UP    : {}{}{}".format(datetime.now().strftime("%Y%m%d %H:%M:%S"),
+                ts = create_timestamp(self.settings.TIMESTAMP_FORMAT)
+                print("[ {} ] {}{}UP    : {}{}{}".format(ts,
                                                          terminal_bg.GREEN, terminal_fg.BLACK,
                                                          host_name,
                                                          terminal_bg.END, terminal_fg.END))
         else:
             if not self.settings.QUIET:
-                print("[ {} ] UPDATE: {}".format(datetime.now().strftime("%Y%m%d %H:%M:%S"), host_name))
+                ts = create_timestamp(self.settings.TIMESTAMP_FORMAT)
+                print("[ {} ] UPDATE: {}".format(ts, host_name))
 
         self.database.add_data(hash_key, data)
         self.__add_queue(self.database.host_list[hash_key]["name"])
@@ -355,14 +376,13 @@ class MainView(FlaskView):
     route_base = "/"
 
     database = None
-    term_width = 60
+    term_width = 80
 
     @classmethod
-    def init(cls, settings, database, term_width=60):
+    def init(cls, settings, database, term_width=80):
         cls.settings = settings
         cls.database = database
         cls.term_width = term_width
-        #cls.env = Environment(loader=FileSystemLoader('.'), trim_blocks=False)
 
     # filtering
     def before_request(self, name, **kwargs):
@@ -392,11 +412,42 @@ class MainView(FlaskView):
         fetch_data = self.database.fetch_page(page_num)
 
         return render_template('index.html', vesta_version=__version__,
-                               title=self.settings.PAGE_TITLE, description=self.settings.PAGE_DESCRIPTION,
+                               title=self.settings.MAIN_PAGE_TITLE, description=self.settings.MAIN_PAGE_DESCRIPTION,
                                page_num=page_num, total_page=total_page, page_data=fetch_data, ok_statuses=env.STATUS_OK,
                                server_address=self.settings.IP, server_port=self.settings.PORT_NUM)
 
+    def table_content(self):
+        fetch_data = self.database.fetch_all(fetch_num=1)
+
+        ts = create_timestamp(self.settings.TIMESTAMP_FORMAT)
+
+        return render_template('gpu_table.html', vesta_version=__version__,
+                               title=self.settings.TABLE_PAGE_TITLE, description=self.settings.TABLE_PAGE_DESCRIPTION,
+                               table_data=fetch_data, timestamp=ts,
+                               server_address=self.settings.IP, server_port=self.settings.PORT_NUM)
+
+    @route('/gpu_table', methods=["GET"])
+    def get_gpu_table(self):
+        """
+            send back all machine's gpu info.
+        """
+
+        if request.args.get('term', default=False, type=bool):
+            fetch_data = self.database.fetch_all(fetch_num=1)
+
+            response  = "+------------------------------------------------------------------------------+\n"
+            response += "| vesta ver. {} gpu table |\n".format(truncate_str(__version__, length=55, fill_char=" "))
+            response += format_gpu_table(fetch_data)
+
+            return response
+        else:
+            return self.table_content()
+
     def index(self):
+        """
+            :root
+        """
+
         if request.args.get('term', default=False, type=bool):
             # url parameter: page is 0, it means not specified which will fetch all.
             page_num = request.args.get('page', default=0, type=int)
@@ -410,7 +461,7 @@ class MainView(FlaskView):
                     response = "vesta ver. {}\n".format(__version__)+format_gpu_detail_info(fetch_data, term_width=self.term_width)
                 else:
                     response  = "+------------------------------------------------------------------------------+\n"
-                    response += "| vesta ver. {}|\n".format(truncate_str(__version__, length=66, fill_char=" "))
+                    response += "| vesta ver. {} gpu info. |\n".format(truncate_str(__version__, length=55, fill_char=" "))
                     response += format_gpu_info(fetch_data)
             else:
                 fetch_data = self.database.fetch_page(page_num)
@@ -419,7 +470,7 @@ class MainView(FlaskView):
                     response = "vesta ver. {}\n".format(__version__)+format_gpu_detail_info(fetch_data, term_width=self.term_width)
                 else:
                     response  = "+------------------------------------------------------------------------------+\n"
-                    response += "| vesta ver. {}|\n".format(truncate_str(__version__, length=66, fill_char=" "))
+                    response += "| vesta ver. {} gpu info. |\n".format(truncate_str(__version__, length=55, fill_char=" "))
                     response += format_gpu_info(fetch_data)
 
             return response
@@ -435,23 +486,26 @@ class HTTPServer(object):
             args:
                 settings
                     settings must have following instance variable
-                        DB_NAME                                 :str
-                        DB_DIR                                  :str
+                        IP                                      :str
+                        PORT_NUM                                :int
+                        TOKEN                                   :str
                         SERVER_NAME                             :str
                         BIND_HOST                               :int
+                        DB_NAME                                 :str
+                        DB_DIR                                  :str
+                        TIMESTAMP_FORMAT                        :str -> choice ['YMD', 'MDY', 'DMY']
+                        PAGE_PER_HOST_NUM                       :int
+                        MAIN_PAGE_TITLE                         :str
+                        MAIN_PAGE_DESCRIPTION                   :str
+                        TABLE_PAGE_DESCRIPTION                  :str
+                        TABLE_PAGE_TITLE                        :str
                         TERM_WIDTH                              :int
+                        SORT_BY                                 :str
                         SERVER_SLEEP_TIME                       :int
                         DOWN_TH                                 :int
                         WS_RECEIVE_TIMEOUT                      :int
                         SLACK_BOT_SLEEP_TIME                    :int
                         SAVE_INTERVAL                           :int
-                        SORT_BY                                 :str
-                        IP                                      :str
-                        PORT_NUM                                :int
-                        TOKEN                                   :str
-                        PAGE_PER_HOST_NUM                       :int
-                        PAGE_TITLE                              :str
-                        PAGE_DESCRIPTION                        :str
                         SLACK_WEBHOOK                           :str
                         SLACK_BOT_TOKEN                         :str
                         SLACK_BOT_POST_CHANNEL                  :str
@@ -468,9 +522,8 @@ class HTTPServer(object):
                         KEYWORD_PRINT_HELP                      :str
                         QUIET                                   :bool
 
-                    typically, I recommend using `argparse`
+                    typically, I recommend using `argparse`.
                     see `gpu_status_server.py` for more detail.
-
         """
 
         self.settings = settings
@@ -480,6 +533,7 @@ class HTTPServer(object):
 
         self.database_name = self.settings.DB_NAME
         self.database_dir = self.settings.DB_DIR
+
         self.name = self.settings.SERVER_NAME
         self.bind_host = self.settings.BIND_HOST
         self.bind_port = self.settings.PORT_NUM
@@ -506,7 +560,17 @@ class HTTPServer(object):
         UpdateView.init(self.settings, self.database)
         UpdateView.register(self.app)
 
+        """
+        if settings.SSL_KEY is not None and settings.SSL_CERT is not None:
+            ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
+            ssl_context.load_cert_chain(settings.SSL_CERT, settings.SSL_KEY)
+
+            self.wsgi_server = pywsgi.WSGIServer((self.bind_host, self.bind_port), self.app,
+                                                 handler_class=WebSocketHandler, ssl_context=ssl_context)
+        """
         self.wsgi_server = pywsgi.WSGIServer((self.bind_host, self.bind_port), self.app, handler_class=WebSocketHandler)
+
+
 
         if self.settings.SLACK_BOT_TOKEN != "":
             self.slack_bot = SlackBot(self.settings, self.settings.SLACK_BOT_TOKEN, self.database)
@@ -518,16 +582,6 @@ class HTTPServer(object):
             log = logging.getLogger("werkzeug")
             log.disabled = True
             self.app.logger.disabled = True
-
-    def start(self, ssl_context=None):
-        self.ws_thread = threading.Thread(target=self.wsgi_server.serve_forever)
-        self.ws_thread.daemon = True
-        self.ws_thread.start()
-
-        if self.slack_bot is not None:
-            self.bot_thread = threading.Thread(target=self.slack_bot.start)
-            self.bot_thread.daemon = True
-            self.bot_thread.start()
 
     def send_down_detection(self, host_name, down_time):
         msg = self.settings.HOST_DOWN_MSG.format(host_name, down_time)
@@ -595,7 +649,20 @@ class HTTPServer(object):
                     self.database.host_list[hash_key]["status"] = env.SERVER_DOWN
 
                     if not self.settings.QUIET:
-                        print("[ {} ] {}{}DOWN  : {}{}{}".format(datetime.now().strftime("%Y%m%d %H:%M:%S"),
-                                                                         terminal_bg.RED, terminal_fg.WHITE, 
-                                                                         host["name"],
-                                                                         terminal_fg.END, terminal_bg.END))
+                        ts = create_timestamp(self.settings.TIMESTAMP_FORMAT)
+                        print("[ {} ] {}{}DOWN  : {}{}{}".format(ts,
+                                                                 terminal_bg.RED, terminal_fg.WHITE, 
+                                                                 host["name"],
+                                                                 terminal_fg.END, terminal_bg.END))
+
+    def start(self, ssl_context=None):
+        self.ws_thread = threading.Thread(target=self.wsgi_server.serve_forever)
+        self.ws_thread.daemon = True
+        self.ws_thread.start()
+
+        if self.slack_bot is not None:
+            self.bot_thread = threading.Thread(target=self.slack_bot.start)
+            self.bot_thread.daemon = True
+            self.bot_thread.start()
+
+        self.watch_and_sleep()
