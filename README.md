@@ -36,7 +36,6 @@ VALID_NETWORK: "192.168.11.(129|1[3-9][0-9]|2[0-5][0-9])"
 
 ```  
 Example is in `example/local_settings.yaml`  
-  
 
 # Usage
 You can use simple wrapper,  
