@@ -11,6 +11,30 @@ Also you might need to setup some configurations for your own environment.
 # Configuration
 When using `gpu_status_server.py` and `gpu_info_sender.py`, there are many options to change the settings, or you can use .yaml file for overwriting the arguments.  
 Use `-h` to see all arguments and use `--local_settings_yaml_path` option to overwrite.  
+.yaml file can be written like  
+```
+# every key must be in capital letter
+
+# this ip address is the server address for the client which send the gpu information
+IP: "192.168.0.1"
+
+# server's open port
+PORT_NUM: 8080
+
+MAIN_PAGE_TITLE: "AWSOME GPUs"
+MAIN_PAGE_DESCRIPTION: "awsome description"
+TABLE_PAGE_TITLE: "AWSOME Table"
+TABLE_PAGE_DESCRIPTION: "awsome description"
+
+# DD/MM/YYYY
+TIMESTAMP_FORMAT: "DMY"
+
+# this will filter the networks
+# it will be fed in python `re.search()`, so you can use regular expressions
+VALID_NETWORK: "192.168.11.(129|1[3-9][0-9]|2[0-5][0-9])"
+# this allows 192.168.11.129~255
+
+```  
 Example is in `example/local_settings.yaml`  
 
 # Usage
@@ -33,20 +57,20 @@ You will get like
 ```
 $ curl "http://0.0.0.0:8080/?term=true"
 +------------------------------------------------------------------------------+
-| vesta ver. 1.0.0                                                   gpu info. |
+| vesta ver. 1.0.1                                                   gpu info. |
 +------------------+------------------------+-----------------+--------+-------+
 | host             | gpu                    | memory usage    | volat. | temp. |
 +------------------+------------------------+-----------------+--------+-------+
-|mau_local         | 0:GeForce GTX 1080 Ti  |   8018 /  11169 |     0 %|  80 °C|
+|mau_local         | 0:GeForce GTX 1080 Ti  |   8018 /  11169 |    92 %|  80 °C|
 |                  | 1:GeForce GTX 1080 Ti  |      2 /  11172 |     0 %|  38 °C|
 +------------------+------------------------+-----------------+--------+-------+
-|mau_local_11a7c5eb| 0:GeForce GTX 1080 Ti  |   8018 /  11169 |    92 %|  80 °C|
+|mau_local_11a7c5eb| 0:GeForce GTX 1080 Ti  |   2400 /  11169 |    78 %|  79 °C|
 |                  | 1:GeForce GTX 1080 Ti  |      2 /  11172 |     0 %|  38 °C|
 +------------------+------------------------+-----------------+--------+-------+
-|mau_local_ac993634| 0:GeForce GTX 1080 Ti  |   8018 /  11169 |    92 %|  80 °C|
+|mau_local_ac993634| 0:GeForce GTX 1080 Ti  |   8897 /  11169 |    98 %|  82 °C|
 |                  | 1:GeForce GTX 1080 Ti  |      2 /  11172 |     0 %|  38 °C|
-|                  | 1:GeForce GTX 1080 Ti  |      2 /  11172 |     0 %|  38 °C|
-|                  | 1:GeForce GTX 1080 Ti  |      2 /  11172 |     0 %|  38 °C|
+|                  | 2:GeForce GTX 1080 Ti  |      2 /  11172 |     0 %|  36 °C|
+|                  | 3:GeForce GTX 1080 Ti  |      2 /  11172 |     0 %|  40 °C|
 +------------------+------------------------+-----------------+--------+-------+
 ```
 
@@ -54,9 +78,9 @@ If you want to see detail information you can use `detail` option like `http://<
 You will get like  
 ```
 $ curl "http://0.0.0.0:8080/?term=true&detail=true"
-vesta ver. 1.0.0
+vesta ver. 1.0.1
 
-#### mau_local_19e5d26c :: 127.0.0.1 ###########################################
+#### mau_local :: 127.0.0.1 ####################################################
   last update: 24/03/2019 20:27:10
 --------------------------------------------------------------------------------
   ┌[ gpu:0 GeForce GTX 1080 Ti 2019/03/24 20:00:00.000 ]─────────────────────┐
@@ -64,7 +88,7 @@ vesta ver. 1.0.0
   │  8018 / 11169MiB           3151MiB           92%         80°C            │
   │                                                                          │
   │ mem [///////////////////////////////////////////                  ]  71% │
-  │  ├── train1                      6400MiB root                            │
+  │  ├── train1                      6400MiB user1                           │
   │  └── train2                      1618MiB user1                           │
   └──────────────────────────────────────────────────────────────────────────┘
 
@@ -76,11 +100,14 @@ vesta ver. 1.0.0
   └──────────────────────────────────────────────────────────────────────────┘
 
 ________________________________________________________________________________
+.
+.
+.
 
 ```
   
 Server will also provide you to access host data by json.
-Access `http://<server_address>/states/<host_name>/`, or to specify host `http://<server_address>/states/<host_name>/`  
+Access `http://<server_address>/states/`, or to specify host `http://<server_address>/states/<host_name>/`  
 You can use url parameter to fetch how many log you want by `fetch_num=<# you want>`  
 
 ## from Web Browser
@@ -109,7 +136,7 @@ Json response is like
                                     'name': 'train1',
                                     'pid': "31415",
                                     'used_memory': 6400,
-                                    'user': 'root'
+                                    'user': 'user1'
                                   },
                                   {
                                     'name': 'train2',

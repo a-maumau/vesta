@@ -49,6 +49,8 @@ class DataBase(object):
                 "status":SERVER_WAITING_UPLINK  # str
             },
         }
+
+        it's not a `list`, it's a `dict`...
         """
         self.host_list = {}
         self.name_to_hash_table = {}
@@ -70,7 +72,8 @@ class DataBase(object):
             result = cur.fetchall()
             for data in result:
                 # {hash key: host_name}
-                self.host_list[data[0]] = {"name":data[1], "ip_address":data[2], "last_update":0, "last_touch":0, "status":env.SERVER_WAITING_UPLINK, "cache_data":None}
+                self.host_list[data[0]] = {"name":data[1], "ip_address":data[2], "last_update":0, "last_touch":0,
+                                           "status":env.SERVER_WAITING_UPLINK, "cache_data":None}
                 self.name_to_hash_table[data[1]] = data[0]
             
             print("#### database ####")
@@ -216,6 +219,38 @@ class DataBase(object):
 
         return response
 
+    def fetch_all_cache(self):
+        """
+            return all host's gpu information data with list of dictionary.
+
+            args:
+                host_name: str
+                fetch_num: int
+
+            return: dict
+                it will return fetch_num of data for each host
+        """
+
+        response = {}
+
+        for host_id in self.host_order:
+            host_name = self.host_list[host_id]["name"]
+
+            response[host_name] = {"data":[],
+                                   "ip_address":self.host_list[host_id]["ip_address"],
+                                   "status":self.host_list[host_id]["status"]}
+
+            if self.host_list[host_id]["cache_data"] is None:
+                response[host_name]["data"].append({"gpu_data":{}, "timestamp":"no entry received."})
+            else:
+                if self.host_list[host_id]["status"] in env.STATUS_BAD:
+                    response[host_name]["data"].append({"gpu_data":{}, "timestamp":self.format_timestamp(self.host_list[host_id]["last_touch"])})
+                else:
+                    response[host_name]["data"].append({"gpu_data":self.host_list[host_id]["cache_data"]["data"],
+                                                        "timestamp":self.format_timestamp(self.host_list[host_id]["cache_data"]["timestamp"])})
+
+        return response
+
     def fetch_page(self, page_num):
         """
             returns a each page data.
@@ -344,7 +379,8 @@ class DataBase(object):
 
     def add_host(self, host_id, host_name, host_ip):
         tn = time.time()-self.settings.SAVE_INTERVAL
-        self.host_list[host_id] = {"name":host_name, "ip_address":host_ip, "last_update":tn, "last_touch":tn, "status":env.SERVER_AVAILABLE}
+        self.host_list[host_id] = {"name":host_name, "ip_address":host_ip, "last_update":tn, "last_touch":tn,
+                                   "status":env.SERVER_AVAILABLE, "cache_data":None}
         self.name_to_hash_table[host_name] = host_id
         self.host_order = self.sort_func(self.host_list)
         self.create_new_host(host_id, host_name, host_ip)
@@ -355,9 +391,6 @@ class DataBase(object):
         self.host_list[host_id]["status"] = env.SERVER_AVAILABLE
         self.host_list[host_id]["last_touch"] = tn
         self.host_list[host_id]["cache_data"] = {"timestamp":int(datetime.now().strftime("%Y%m%d%H%M%S")), "data":data}
-
-        print(tn)
-        print(self.host_list[host_id]["last_update"])
 
         if tn - self.host_list[host_id]["last_update"] >= self.settings.SAVE_INTERVAL:
             self.host_list[host_id]["last_update"] = tn

@@ -28,7 +28,8 @@ def truncate_str(text, length=25, fill_char=None, ellipsis="…", align_right=Fa
     
     if len(text) > length:
         if ellipsis_left:
-            return ellipsis+text[len(ellipsis):length]
+          # it don't need -1 because it start from 0
+            return ellipsis+text[len(text)-(length-len(ellipsis)):]
         else:
             return text[:length-len(ellipsis)]+ellipsis
     elif fill_char is not None:
@@ -123,6 +124,7 @@ def format_gpu_base_info_str(temperature, used_memory, total_memory, available_m
                                                   length=length, fill_char=" ", ellipsis="…", align_right=False),
                                      add_after,
                                      "\n" if new_line else "")
+
     gpu_info_str += "{}{}{}{}".format(add_before,
                                       truncate_str("{:5d} / {:5d}MiB          {:5d}MiB          {:3d}%        {:3d}°C".format(
                                                    used_memory, total_memory, available_memory, gpu_volatile, temperature),
@@ -146,32 +148,32 @@ def format_process_str(process_list, length=80, cmd_len=25, add_before="", add_a
     for index, process_data in enumerate(process_list):
         if index == len(process_list)-1:
             process_str += "{}{}{}{}".format(add_before,
-                                             truncate_str("└── {} {:6d}MiB {}".format(
-                                                            truncate_str(process_data['name'], 
-                                                                        length=cmd_len,
-                                                                        fill_char=" ",
-                                                                        ellipsis="…",
-                                                                        ellipsis_left=True),
-                                                            int(process_data['used_memory']),
-                                                            process_data['user']),
-                                                            length=length,
-                                                            fill_char=" ",
-                                                            ellipsis="…"),
-                                             add_after,
-                                             "\n" if new_line else "")
-        else:
-            process_str += "{}{}{}{}".format(add_before,
-                                             truncate_str("├── {} {:6d}MiB {}".format(
-                                                            truncate_str(process_data['name'], 
+                                             truncate_str("└── {} {:5d}MiB {}".format(
+                                                          truncate_str(process_data['name'], 
                                                                        length=cmd_len,
                                                                        fill_char=" ",
                                                                        ellipsis="…",
                                                                        ellipsis_left=True),
-                                                            int(process_data['used_memory']),
-                                                            process_data['user']),
-                                                            length=length,
-                                                            fill_char=" ",
-                                                            ellipsis="…"),
+                                                          int(process_data['used_memory']),
+                                                          process_data['user']),
+                                                          length=length,
+                                                          fill_char=" ",
+                                                          ellipsis="…"),
+                                             add_after,
+                                             "\n" if new_line else "")
+        else:
+            process_str += "{}{}{}{}".format(add_before,
+                                             truncate_str("├── {} {:5d}MiB {}".format(
+                                                          truncate_str(process_data['name'], 
+                                                                       length=cmd_len,
+                                                                       fill_char=" ",
+                                                                       ellipsis="…",
+                                                                       ellipsis_left=True),
+                                                          int(process_data['used_memory']),
+                                                          process_data['user']),
+                                                          length=length,
+                                                          fill_char=" ",
+                                                          ellipsis="…"),
                                              add_after,
                                              "\n" if new_line else "")
 
