@@ -455,7 +455,7 @@ class MainView(FlaskView):
             if page_num < 0:
                 return create_response_404("invalid page number.")
             elif page_num == 0:
-                fetch_data = self.database.fetch_all(fetch_num=1)
+                fetch_data = self.database.fetch_all_cache()
 
                 if request.args.get('detail', default=False, type=bool):
                     response = "vesta ver. {}\n".format(__version__)+format_gpu_detail_info(fetch_data, term_width=self.term_width)
