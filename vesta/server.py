@@ -3,6 +3,7 @@ import re
 import json
 import time
 import random
+import asyncio
 import schedule
 import requests
 import threading
@@ -279,12 +280,12 @@ class UpdateView(FlaskView):
             send_uplink_detection(self.settings, self.settings.RE_UPLINK_MSG, host_name)
             if not self.settings.QUIET:
                 ts = create_timestamp(self.settings.TIMESTAMP_FORMAT)
-                print("[ {} ] {}{}UP    : {}{}{}".format(ts,
-                                                         terminal_bg.GREEN, terminal_fg.BLACK,
-                                                         host_name,
-                                                         terminal_bg.END, terminal_fg.END))
+                print("[ {} ] {}{}UP       : {}{}{}".format(ts,
+                                                            terminal_bg.GREEN, terminal_fg.BLACK,
+                                                            host_name,
+                                                            terminal_bg.END, terminal_fg.END))
         else:
-            if not self.settings.QUIET:
+            if self.settings.DEBUG:
                 ts = create_timestamp(self.settings.TIMESTAMP_FORMAT)
                 print("[ {} ] UPDATE: {}".format(ts, host_name))
 
@@ -641,7 +642,7 @@ class HTTPServer(object):
             time.sleep(self.settings.SERVER_SLEEP_TIME)
 
             for hash_key, host in self.database.host_list.items():
-                time_diff = time.time() - host["last_touch"]
+                time_diff = self.database.get_unix_timestamp() - host["last_touch"]
                 if time_diff > self.settings.DOWN_TH and not host["status"] in env.STATUS_BAD:
                     if self.settings.SLACK_WEBHOOK != "":
                         self.send_down_detection(host["name"], self.settings.DOWN_TH)
@@ -650,10 +651,10 @@ class HTTPServer(object):
 
                     if not self.settings.QUIET:
                         ts = create_timestamp(self.settings.TIMESTAMP_FORMAT)
-                        print("[ {} ] {}{}DOWN  : {}{}{}".format(ts,
-                                                                 terminal_bg.RED, terminal_fg.WHITE, 
-                                                                 host["name"],
-                                                                 terminal_fg.END, terminal_bg.END))
+                        print("[ {} ] {}{}DOWN     : {}{}{}".format(ts,
+                                                                    terminal_bg.RED, terminal_fg.WHITE, 
+                                                                    host["name"],
+                                                                    terminal_fg.END, terminal_bg.END))
 
     def start(self, ssl_context=None):
         self.ws_thread = threading.Thread(target=self.wsgi_server.serve_forever)
@@ -661,8 +662,9 @@ class HTTPServer(object):
         self.ws_thread.start()
 
         if self.slack_bot is not None:
-            self.bot_thread = threading.Thread(target=self.slack_bot.start)
-            self.bot_thread.daemon = True
+            # not main threads (new threads) do not have event loop, so we will pass it
+            loop = asyncio.get_event_loop()
+            self.bot_thread = threading.Thread(target=self.slack_bot.start, args=(loop,), daemon=True)
             self.bot_thread.start()
 
         self.watch_and_sleep()

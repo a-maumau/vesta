@@ -71,7 +71,7 @@ class DataBase(object):
             cur.execute("select * from machines;")
             result = cur.fetchall()
             for data in result:
-                # {hash key: host_name}
+                # {hash key: host_name}, "last_update" and "last_touch" are unix time (sec)
                 self.host_list[data[0]] = {"name":data[1], "ip_address":data[2], "last_update":0, "last_touch":0,
                                            "status":env.SERVER_WAITING_UPLINK, "cache_data":None}
                 self.name_to_hash_table[data[1]] = data[0]
@@ -125,7 +125,28 @@ class DataBase(object):
             con.close()
             return False
 
+    def get_timestamp(self):
+        """
+            return a timestamp string.
+
+            return: str
+                it is like "201801010000" which is "YYYYMMDDhhmmss" style.
+        """
+
+        return datetime.now().strftime("%Y%m%d%H%M%S")
+
+    def get_unix_timestamp(self):
+        return time.time()
+
     def format_timestamp(self, ts):
+        """
+            return a formatted timestamp string.
+
+            return: str
+                it is like "01/01/2018 00:00:00".
+                you can change the format by changing the self.ts_format
+        """
+
         ts = str(ts)
 
         # ex. 20181123204514 -> 2018/11/23 20:45:14
@@ -141,6 +162,43 @@ class DataBase(object):
             return "{}/{}/{} {}:{}:{}".format(ts[6:8], ts[4:6], ts[0:4], ts[8:10], ts[10:12], ts[12:14])
 
         return "{}/{}/{} {}:{}:{}".format(ts[4:6], ts[6:8], ts[0:4], ts[8:10], ts[10:12], ts[12:14])
+
+    def format_unix_timestamp(self, uinx_ts):
+        """
+            return a formatted timestamp string of unix time.
+
+            return: str
+                it is like "01/01/2018 00:00:00".
+                you can change the format by changing the self.ts_format
+        """
+
+        ts = datetime.fromtimestamp(uinx_ts)
+
+        # ex. 2018/11/23 20:45:14
+        if self.ts_format == "ymd":
+            return ts.strftime('%Y/%m/%d %H:%M:%S')
+
+        # ex. 11/23/2018 20:45:14
+        if self.ts_format == "mdy":
+            return ts.strftime('%m/%d/%Y %H:%M:%S')
+
+        # ex. 23/11/2018 20:45:14
+        if self.ts_format == "dmy":
+            return ts.strftime('%d/%m/%Y %H:%M:%S')
+
+        return ts.strftime('%m/%d/%Y %H:%M:%S')
+
+    def convert_unix_timestamp_to_timestamp(self, uinx_ts):
+        """
+            convert unix time to timestamp
+
+            return: str
+                it is like "20180101182307", YYYYDDMMhhmmss style.
+        """
+
+        ts = datetime.datetime.fromtimestamp(uinx_ts)
+
+        return int(ts.strftime('%Y%m%d%H%M%S'))
 
     def create_new_host(self, host_id, host_name, host_ip):
         con = sqlite3.connect(self.database_path)
@@ -244,7 +302,7 @@ class DataBase(object):
                 response[host_name]["data"].append({"gpu_data":{}, "timestamp":"no entry received."})
             else:
                 if self.host_list[host_id]["status"] in env.STATUS_BAD:
-                    response[host_name]["data"].append({"gpu_data":{}, "timestamp":self.format_timestamp(self.host_list[host_id]["last_touch"])})
+                    response[host_name]["data"].append({"gpu_data":{}, "timestamp":self.format_unix_timestamp(self.host_list[host_id]["last_touch"])})
                 else:
                     response[host_name]["data"].append({"gpu_data":self.host_list[host_id]["cache_data"]["data"],
                                                         "timestamp":self.format_timestamp(self.host_list[host_id]["cache_data"]["timestamp"])})
@@ -277,6 +335,7 @@ class DataBase(object):
             return: dict
                 it will return fetch_num of data for host_name.
         """
+
         if host_name not in self.name_to_hash_table:
             return None
 
@@ -341,6 +400,7 @@ class DataBase(object):
             return: dict
                 it will return cached data for host_name.
         """
+
         if host_name not in self.name_to_hash_table:
             return None
 
@@ -355,7 +415,7 @@ class DataBase(object):
             response[host_name]["data"].append({"gpu_data":{}, "timestamp":"no entry received."})
         else:
             if self.host_list[host_id]["status"] in env.STATUS_BAD:
-                response[host_name]["data"].append({"gpu_data":{}, "timestamp":self.format_timestamp(self.host_list[host_id]["last_touch"])})
+                response[host_name]["data"].append({"gpu_data":{}, "timestamp":self.format_unix_timestamp(self.host_list[host_id]["last_update"])})
             else:
                 response[host_name]["data"].append({"gpu_data":self.host_list[host_id]["cache_data"]["data"],
                                                     "timestamp":self.format_timestamp(self.host_list[host_id]["cache_data"]["timestamp"])})
@@ -378,34 +438,35 @@ class DataBase(object):
             return False
 
     def add_host(self, host_id, host_name, host_ip):
-        tn = time.time()-self.settings.SAVE_INTERVAL
-        self.host_list[host_id] = {"name":host_name, "ip_address":host_ip, "last_update":tn, "last_touch":tn,
+        unix_ts = self.get_unix_timestamp()-self.settings.SAVE_INTERVAL
+        self.host_list[host_id] = {"name":host_name, "ip_address":host_ip, "last_update":unix_ts, "last_touch":unix_ts,
                                    "status":env.SERVER_AVAILABLE, "cache_data":None}
         self.name_to_hash_table[host_name] = host_id
         self.host_order = self.sort_func(self.host_list)
         self.create_new_host(host_id, host_name, host_ip)
 
     def add_data(self, host_id, data):
-        tn = time.time()
+        ts = int(self.get_timestamp())
+        unix_ts = self.get_unix_timestamp()
 
         self.host_list[host_id]["status"] = env.SERVER_AVAILABLE
-        self.host_list[host_id]["last_touch"] = tn
-        self.host_list[host_id]["cache_data"] = {"timestamp":int(datetime.now().strftime("%Y%m%d%H%M%S")), "data":data}
+        self.host_list[host_id]["last_touch"] = unix_ts
+        self.host_list[host_id]["cache_data"] = {"timestamp":ts, "data":data}
 
-        if tn - self.host_list[host_id]["last_update"] >= self.settings.SAVE_INTERVAL:
-            self.host_list[host_id]["last_update"] = tn
+        if self.get_unix_timestamp() - self.host_list[host_id]["last_update"] >= self.settings.SAVE_INTERVAL:
+            self.host_list[host_id]["last_update"] = unix_ts
 
             con = sqlite3.connect(self.database_path)
             cur = con.cursor()
 
             cur.execute("insert into {} values(:timestamp, :data)".format(self.host_list[host_id]["name"]),
-                        {"timestamp":int(datetime.now().strftime("%Y%m%d%H%M%S")), "data":self.compress_data(data)})
+                        {"timestamp":ts, "data":self.compress_data(data)})
 
             con.commit()
             con.close()
 
     def touch_data(self, host_id):
-        self.host_list[host_id]["last_touch"] = time.time()
+        self.host_list[host_id]["last_touch"] = self.get_unix_timestamp()
 
     def compress_data(self, data):
         return bz2.compress(pickle.dumps(data, pickle.HIGHEST_PROTOCOL))

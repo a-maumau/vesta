@@ -223,6 +223,7 @@ def format_gpu_info(fetch_data):
             h = truncate_str(host_name, length=38-len(host_info["ip_address"]), fill_char=" ", ellipsis="…", align_right=False)
             ip = truncate_str(host_info["ip_address"], length=len(host_info["ip_address"]), fill_char=" ", ellipsis="…", align_right=True)
             ts = truncate_str(host_info["data"][0]["timestamp"], length=20, fill_char=" ", ellipsis="…", align_right=False)
+            
             info += "| status: {}|\n".format(st)
             info += "|   {} ({}) last update: {}|\n".format(h, ip, ts)
             info += "+------------------+------------------------+-----------------+--------+-------+\n"

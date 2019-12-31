@@ -82,7 +82,8 @@ if __name__ == '__main__':
     # for help message
     parser.add_argument('--keyword_print_help', dest='KEYWORD_PRINT_HELP', type=str, default="HELP", help='if you set to "" i will be disabled')
 
-    parser.add_argument('-quiet', dest='QUIET', action="store_true", default=False, help='show only critical error message.')
+    parser.add_argument('-quiet', dest='QUIET', action="store_true", default=False, help='')
+    parser.add_argument('-debug', dest='DEBUG', action="store_true", default=False, help='')
 
     # ssl settings certfile, keyfile=None, password
     """
