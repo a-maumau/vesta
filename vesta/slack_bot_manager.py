@@ -157,7 +157,7 @@ class SlackBot(object):
 
                 return {"type":"snippet", "content":msg}
 
-            # print command
+            # print  available command
             elif self.re_key_help.search(request_content) is not None and self.valid_key_help:
                 msg = ""
                 msg += ("`{}{}`: show all hosts which is watched by the server.\n".format(self.settings.KEYWORD_CMD_PREFIX, self.settings.KEYWORD_PRINT_HOSTS) if self.valid_key_ph else "")
@@ -174,38 +174,41 @@ class SlackBot(object):
 
         return {"type":None, "content":""}
 
-    def send_snippet(self, msg, parsed_data, start_thread=True):
+    def send_snippet(self, msg, channel, title="", file_name="msg.txt", initial_comment="", thread_ts=""):
+        """
+            send string message as snippet
+
+            args:
+                msg             : str
+                channel         : str
+                title           : str
+                file_name       : str
+                initial_comment : str
+                thread_ts       : str
+
+                "channel" should be a "#channel_name" or "Cxxxxx" styled
+        """
+
         try:
             msg = io.StringIO(msg)
             
-            if start_thread:
-                response = self.client.files_upload(channels=parsed_data["channel"],
-                                                    initial_comment="<@{}>".format(parsed_data["user"]),
-                                                    title="response: {}".format(parsed_data["user"], parsed_data["request"]),
-                                                    file=msg,
-                                                    filename='{}.txt'.format(parsed_data["request"]),
-                                                    thread_ts=parsed_data["thread_ts"])
-            else:
-                response = self.client.files_upload(channels=parsed_data["channel"],
-                                                    initial_comment="<@{}> ".format(parsed_data["user"]),
-                                                    title="response: {}".format(parsed_data["request"]),
-                                                    file=msg,
-                                                    filename='{}.txt'.format(parsed_data["request"]))
-            
+            #if len(thread_ts:
+            response = self.client.files_upload(file=msg,
+                                                channels=channel,
+                                                title=title,
+                                                filename=file_name,
+                                                initial_comment=initial_comment,
+                                                thread_ts=thread_ts)            
             msg.close()
 
         except Exception as e:
             print_error(e)
 
-    def send_message(self, msg, parsed_data, start_thread=True):
+    def send_message(self, msg, channel, thread_ts=""):
         try:
-            if start_thread:
-                self.client.chat_postMessage(channel=parsed_data["channel"],
-                                             text="<@{}>\n{}".format(parsed_data["user"], msg),
-                                             thread_ts=parsed_data["thread_ts"])
-            else:
-                self.client.chat_postMessage(channel=parsed_data["channel"],
-                                             text="<@{}>\n{}".format(parsed_data["user"], msg))
+            self.client.chat_postMessage(text=msg,
+                                         channel=channel,
+                                         thread_ts=thread_ts)
 
         except Exception as e:
             print_error(e)
@@ -232,11 +235,15 @@ class SlackBot(object):
             if "user" in data_dict:
                 if "text" in data_dict:
                     if self.cmd_prefix.match(data_dict["text"]):
-                        req = {"request"   : self.cmd_prefix.sub("", data_dict["text"]),
-                               "user"      : data_dict["user"],
-                               "channel"   : data_dict["channel"],
+                        request = self.cmd_prefix.sub("", data_dict["text"])
+                        req = {"request"         : request,
+                               "user_id"         : data_dict["user"],
+                               "channel"         : data_dict["channel"],
+                               "title"           : "response: {}".format(request),
+                               "file_name"       : "{}.txt".format(request),
+                               "initial_comment" : "<@{}>".format(data_dict["user"]),
                                # in the thread, thread_ts should the parent
-                               "thread_ts" : data_dict['ts'] if "thread_ts" not in data_dict else data_dict["thread_ts"]}
+                               "thread_ts"       : data_dict['ts'] if "thread_ts" not in data_dict else data_dict["thread_ts"]}
 
         except Exception as e:
             print_error(e)
@@ -310,10 +317,17 @@ class SlackBot(object):
                 if response["type"] == "snippet":
                     # slack python api error?
                     # it seems replying through a thread with snipped (file) makes strange behavior
-                    self.send_snippet(response["content"], parsed_data)
+                    self.send_snippet(msg=response["content"],
+                                      channel=parsed_data["channel"],
+                                      title=parsed_data["title"],
+                                      file_name=parsed_data["file_name"],
+                                      initial_comment=parsed_data["initial_comment"],
+                                      thread_ts=parsed_data["thread_ts"])
 
                 if response["type"] == "message":
-                    self.send_message(response["content"], parsed_data)
+                    self.send_message(msg="<@{}>\n{}".format(parsed_data["user_id"], response["content"]),
+                                      channel=parsed_data["channel"],
+                                      thread_ts=parsed_data["thread_ts"])
             else:
                 pass
 

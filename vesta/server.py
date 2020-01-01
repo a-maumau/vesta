@@ -225,7 +225,7 @@ class RegisterView(FlaskView):
 
             if not self.settings.QUIET:
                 ts = create_timestamp(self.settings.TIMESTAMP_FORMAT)
-                print("[ {} ] {}{}register: {}[{}] hash:{}{}{}".format(ts,
+                print("[ {} ] {}{}[ register ] : {}[{}] hash:{}{}{}".format(ts,
                                                                        terminal_bg.BLUE, terminal_fg.WHITE, 
                                                                        name, request.remote_addr, hash_key,
                                                                        terminal_fg.END, terminal_bg.END))
@@ -280,14 +280,14 @@ class UpdateView(FlaskView):
             send_uplink_detection(self.settings, self.settings.RE_UPLINK_MSG, host_name)
             if not self.settings.QUIET:
                 ts = create_timestamp(self.settings.TIMESTAMP_FORMAT)
-                print("[ {} ] {}{}UP       : {}{}{}".format(ts,
+                print("[ {} ] {}{}[    UP    ] : {}{}{}".format(ts,
                                                             terminal_bg.GREEN, terminal_fg.BLACK,
                                                             host_name,
                                                             terminal_bg.END, terminal_fg.END))
         else:
             if self.settings.DEBUG:
                 ts = create_timestamp(self.settings.TIMESTAMP_FORMAT)
-                print("[ {} ] UPDATE: {}".format(ts, host_name))
+                print("[ {} ] [  UPDATE  ] : {}".format(ts, host_name))
 
         self.database.add_data(hash_key, data)
         self.__add_queue(self.database.host_list[hash_key]["name"])
@@ -596,7 +596,7 @@ class HTTPServer(object):
             if not self.settings.QUIET:
                 print(e)
 
-    def send_hosts_statuses(self, msg_title="ALL_HOSTS_STATUSES"):
+    def send_hosts_statuses(self, msg_title="ALL_HOSTS_STATUSES", file_name="statuses.txt"):
         msg = ""
 
         for host_name in self.database.host_order:
@@ -622,7 +622,7 @@ class HTTPServer(object):
 
         if len(msg) > 0:
             if self.slack_bot is not None:
-                self.slack_bot.send_snippet(msg, self.settings.SLACK_BOT_POST_CHANNEL, msg_title, "statuses")
+                self.slack_bot.send_snippet(msg=msg, channel=self.settings.SLACK_BOT_POST_CHANNEL, title=msg_title, file_name=file_name)
 
     def watch_and_sleep(self):
         """
@@ -651,7 +651,7 @@ class HTTPServer(object):
 
                     if not self.settings.QUIET:
                         ts = create_timestamp(self.settings.TIMESTAMP_FORMAT)
-                        print("[ {} ] {}{}DOWN     : {}{}{}".format(ts,
+                        print("[ {} ] {}{}[   DOWN   ] : {}{}{}".format(ts,
                                                                     terminal_bg.RED, terminal_fg.WHITE, 
                                                                     host["name"],
                                                                     terminal_fg.END, terminal_bg.END))
