@@ -3,6 +3,7 @@ import re
 import json
 import time
 import random
+import socket
 import asyncio
 import schedule
 import requests
@@ -38,14 +39,14 @@ def create_response_403(info_msg="forbidden"):
 def create_response_404(info_msg="not found"):
     return json.dumps({"status":"ERROR", "status_code":404, "info":"{}".format(info_msg)})
 
-def send_uplink_detection(settings, msg, host_name):
-    if settings.SLACK_WEBHOOK != "":
+def send_message_to_slack(slack_webhook, msg, quiet=False, debug=False):
+    if slack_webhook != "":
         try:
-            resp = requests.post(settings.SLACK_WEBHOOK, data=json.dumps({"text":msg.format(host_name)}))
-            if resp.history != [] and resp.history != 200:
-                    print("could not send message to Slack.")
+            resp = requests.post(slack_webhook, data=json.dumps({"text":msg}))
+            if resp.history != [] and resp.history != 200 and not quiet:
+                print("could not send message to Slack.")
         except Exception as e:
-            if not settings.QUIET:
+            if debug:
                 print(e)
 
 def create_timestamp(timestamp_format):
@@ -192,14 +193,8 @@ class RegisterView(FlaskView):
     def init(cls, settings, database):
         cls.settings = settings
         cls.database = database
-
-    def send_uplink_detection(self, host_name):
-        msg = self.settings.REGISTER_UPLINK_MSG.format(host_name)
-        
-        resp = requests.post(self.settings.SLACK_WEBHOOK, data=json.dumps({"text":msg}))
-        if resp.history != [] and resp.history != 200:
-            if not self.settings.QUIET:
-                print("could not send message to Slack.")
+        # when token is "", we will pass the validation
+        cls.token_auth_disable = len(cls.settings.TOKEN) < 1
 
     def validate_host_name(self, name):
         # for avoiding error in sqlite3, I think there are more tokens cause error...
@@ -213,7 +208,7 @@ class RegisterView(FlaskView):
         name = self.validate_host_name(request.args.get('host_name'))
         register_hash_code = request.args.get('token')
 
-        if register_hash_code == self.settings.TOKEN:
+        if register_hash_code == self.settings.TOKEN or self.token_auth_disable:
             hash_code = random.getrandbits(128)
             hash_key = "{:x}".format(hash_code)
 
@@ -229,7 +224,8 @@ class RegisterView(FlaskView):
                                                                        terminal_bg.BLUE, terminal_fg.WHITE, 
                                                                        name, request.remote_addr, hash_key,
                                                                        terminal_fg.END, terminal_bg.END))
-            send_uplink_detection(self.settings, self.settings.REGISTER_UPLINK_MSG, name)
+            msg = self.settings.REGISTER_UPLINK_MSG.format(name)
+            send_message_to_slack(self.settings.SLACK_WEBHOOK, msg, self.settings.QUIET, self.settings.DEBUG)
 
             return json.dumps({"id":hash_key,
                                "register_name":name,
@@ -250,6 +246,8 @@ class UpdateView(FlaskView):
     def init(cls, settings, database):
         cls.settings = settings
         cls.database = database
+        # when token is "", we will pass the validation
+        cls.token_auth_disable = len(cls.settings.TOKEN) < 1
         cls.client_update = {}
 
     # filtering
@@ -262,7 +260,7 @@ class UpdateView(FlaskView):
     def add_data(self, hash_key):
         register_hash_code = request.args.get('token')
 
-        if register_hash_code == self.settings.TOKEN:
+        if register_hash_code == self.settings.TOKEN or self.token_auth_disable:
             if self.database.has_hash(hash_key):
                 _thread = threading.Thread(target=self.__add_to_database,
                                            args=(request.get_json(), hash_key, self.database.host_list[hash_key]["name"]))
@@ -277,7 +275,9 @@ class UpdateView(FlaskView):
 
     def __add_to_database(self, data, hash_key, host_name):
         if self.database.host_list[hash_key]["status"] in env.STATUS_BAD:
-            send_uplink_detection(self.settings, self.settings.RE_UPLINK_MSG, host_name)
+            msg = self.settings.RE_UPLINK_MSG.format(host_name)
+            send_message_to_slack(self.settings.SLACK_WEBHOOK, msg, self.settings.QUIET, self.settings.DEBUG)
+
             if not self.settings.QUIET:
                 ts = create_timestamp(self.settings.TIMESTAMP_FORMAT)
                 print("[ {} ] {}{}[    UP    ] : {}{}{}".format(ts,
@@ -492,36 +492,48 @@ class HTTPServer(object):
                         TOKEN                                   :str
                         SERVER_NAME                             :str
                         BIND_HOST                               :int
+
                         DB_NAME                                 :str
                         DB_DIR                                  :str
                         TIMESTAMP_FORMAT                        :str -> choice ['YMD', 'MDY', 'DMY']
+
                         PAGE_PER_HOST_NUM                       :int
                         MAIN_PAGE_TITLE                         :str
                         MAIN_PAGE_DESCRIPTION                   :str
                         TABLE_PAGE_DESCRIPTION                  :str
                         TABLE_PAGE_TITLE                        :str
+                        
                         TERM_WIDTH                              :int
+                        
                         SORT_BY                                 :str
+                        
                         SERVER_SLEEP_TIME                       :int
                         DOWN_TH                                 :int
                         WS_RECEIVE_TIMEOUT                      :int
                         SLACK_BOT_SLEEP_TIME                    :int
                         SAVE_INTERVAL                           :int
+                        
                         SLACK_WEBHOOK                           :str
                         SLACK_BOT_TOKEN                         :str
                         SLACK_BOT_POST_CHANNEL                  :str
+                        
                         VALID_NETWORK                           :str
+                        
                         SCHEDULE_FUNCTION                       :[str]
+                        
                         REGISTER_UPLINK_MSG                     :str
                         RE_UPLINK_MSG                           :str
                         HOST_DOWN_MSG                           :str
+
                         KEYWORD_CMD_PREFIX                      :str
                         KEYWORD_PRINT_HOSTS                     :str
                         KEYWORD_PRINT_ALL_HOSTS                 :str
                         KEYWORD_PRINT_ALL_HOSTS_CMD             :str
                         KEYWORD_PRINT_ALL_HOSTS_DETAIL          :str
                         KEYWORD_PRINT_HELP                      :str
+                        
                         QUIET                                   :bool
+                        DEBUG                                   :bool
 
                     typically, I recommend using `argparse`.
                     see `gpu_status_server.py` for more detail.
@@ -536,8 +548,9 @@ class HTTPServer(object):
         self.database_dir = self.settings.DB_DIR
 
         self.name = self.settings.SERVER_NAME
-        self.bind_host = self.settings.BIND_HOST
+        self.ip_addr = socket.gethostbyname(socket.gethostname())
         self.bind_port = self.settings.PORT_NUM
+        self.bind_host = self.settings.BIND_HOST
         self.term_width = self.settings.TERM_WIDTH
 
         self.main_thread = None
@@ -574,7 +587,13 @@ class HTTPServer(object):
 
 
         if self.settings.SLACK_BOT_TOKEN != "":
-            self.slack_bot = SlackBot(self.settings, self.settings.SLACK_BOT_TOKEN, self.database)
+            self.slack_bot = SlackBot(self.settings, self.settings.SLACK_BOT_TOKEN, self.database,
+                                      server_info={"server_message":self.settings.SERVER_INFO_MSG.format(ip=self.ip_addr,
+                                                                                                         port=self.bind_port,
+                                                                                                         bind_host=self.bind_host),
+                                                   "IP address": self.ip_addr,
+                                                   "open port": self.bind_port,
+                                                   "bind host": self.bind_host})
         else:
             self.slack_bot = None
 
@@ -583,18 +602,6 @@ class HTTPServer(object):
             log = logging.getLogger("werkzeug")
             log.disabled = True
             self.app.logger.disabled = True
-
-    def send_down_detection(self, host_name, down_time):
-        msg = self.settings.HOST_DOWN_MSG.format(host_name, down_time)
-        
-        try:
-            resp = requests.post(self.settings.SLACK_WEBHOOK, data=json.dumps({"text":msg}))
-            if resp.history != [] and resp.history != 200:
-                if not self.settings.QUIET:
-                    print("could not send message to Slack.")
-        except Exception as e:
-            if not self.settings.QUIET:
-                print(e)
 
     def send_hosts_statuses(self, msg_title="ALL_HOSTS_STATUSES", file_name="statuses.txt"):
         msg = ""
@@ -630,6 +637,14 @@ class HTTPServer(object):
             what you are going to send from the host.
         """
 
+        # send greeting message
+        if len(self.settings.SERVER_UP_MSG) > 0:
+            msg = self.settings.SERVER_UP_MSG.format(ip=self.ip_addr,
+                                                     port=self.bind_port,
+                                                     bind_host=self.bind_host)
+            send_message_to_slack(self.settings.SLACK_WEBHOOK, msg, self.settings.QUIET, self.settings.DEBUG)
+
+        # run some functions, they should be a schedule function
         if self.settings.SCHEDULE_FUNCTION:
             try:
                 for sche in self.settings.SCHEDULE_FUNCTION:
@@ -644,8 +659,8 @@ class HTTPServer(object):
             for hash_key, host in self.database.host_list.items():
                 time_diff = self.database.get_unix_timestamp() - host["last_touch"]
                 if time_diff > self.settings.DOWN_TH and not host["status"] in env.STATUS_BAD:
-                    if self.settings.SLACK_WEBHOOK != "":
-                        self.send_down_detection(host["name"], self.settings.DOWN_TH)
+                    msg = self.settings.HOST_DOWN_MSG.format(host_name=host["name"], lost_th=self.settings.DOWN_TH)
+                    send_message_to_slack(self.settings.SLACK_WEBHOOK, msg, self.settings.QUIET, self.settings.DEBUG)
 
                     self.database.host_list[hash_key]["status"] = env.SERVER_DOWN
 

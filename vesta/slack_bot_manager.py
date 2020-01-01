@@ -22,7 +22,7 @@ def print_error(e):
     print(e)
 
 class SlackBot(object):
-    def __init__(self, settings, bot_token, database, term_width=80):
+    def __init__(self, settings, bot_token, database, term_width=80, server_info={"server_message":""}):
         """
             args:
                 settings
@@ -31,16 +31,22 @@ class SlackBot(object):
                         SLACK_WEBHOOK                           :str
                         SLACK_BOT_TOKEN                         :str
                         SLACK_BOT_POST_CHANNEL                  :str
+
                         KEYWORD_CMD_PREFIX                      :str
                         KEYWORD_PRINT_HOSTS                     :str
                         KEYWORD_PRINT_ALL_HOSTS                 :str
                         KEYWORD_PRINT_ALL_HOSTS_CMD             :str
                         KEYWORD_PRINT_ALL_HOSTS_DETAIL          :str
                         KEYWORD_PRINT_HELP                      :str
-                        QUIET                                   :bool
 
                     typically, I recommend using `argparse`.
                     see `gpu_status_server.py` for more detail.
+                
+                bot_token: str
+                database: vesta::Database
+                term_width: int
+                server_info: dict
+
         """
 
         self.settings = settings
@@ -48,15 +54,16 @@ class SlackBot(object):
         self.database = database
         # only using for format sting
         self.term_width = term_width
-        self.client = WebClient(self.bot_token)
+        self.server_info = server_info
 
-        #U8XLD9G5S
+        self.client = WebClient(self.bot_token)
 
         self.cmd_prefix = re.compile(self.settings.KEYWORD_CMD_PREFIX)
         self.re_key_ph = re.compile(self.settings.KEYWORD_PRINT_HOSTS)
         self.re_key_pah = re.compile(self.settings.KEYWORD_PRINT_ALL_HOSTS)
         self.re_key_pahc = re.compile(self.settings.KEYWORD_PRINT_ALL_HOSTS_CMD)
         self.re_key_pahd = re.compile(self.settings.KEYWORD_PRINT_ALL_HOSTS_DETAIL)
+        self.re_key_server_info = re.compile(self.settings.KEYWORD_PRINT_SERVER_INFO)
         self.re_key_help = re.compile(self.settings.KEYWORD_PRINT_HELP)
 
         # check keywords are empty or not
@@ -64,6 +71,7 @@ class SlackBot(object):
         self.valid_key_pah = len(self.settings.KEYWORD_PRINT_ALL_HOSTS) > 0
         self.valid_key_pahc = len(self.settings.KEYWORD_PRINT_ALL_HOSTS_CMD) > 0
         self.valid_key_pahd = len(self.settings.KEYWORD_PRINT_ALL_HOSTS_DETAIL) > 0
+        self.valid_key_server_info = len(self.settings.KEYWORD_PRINT_SERVER_INFO) > 0
         self.valid_key_help = len(self.settings.KEYWORD_PRINT_HELP) > 0
 
     def create_response(self, req_content_dict):
@@ -157,15 +165,28 @@ class SlackBot(object):
 
                 return {"type":"snippet", "content":msg}
 
-            # print  available command
+            # print server info
+            elif self.re_key_server_info.search(request_content) is not None and self.valid_key_server_info:
+                msg = ""
+                msg += "server messaeg: {}\n\n".format(self.server_info["server_message"])
+                for info_k, info_v in self.server_info.items():
+                    if info_k == "server_message":
+                        continue
+
+                    msg += "{}: `{}`\n".format(info_k, info_v)
+
+                return {"type":"message", "content":msg}
+
+            # print available command
             elif self.re_key_help.search(request_content) is not None and self.valid_key_help:
                 msg = ""
-                msg += ("`{}{}`: show all hosts which is watched by the server.\n".format(self.settings.KEYWORD_CMD_PREFIX, self.settings.KEYWORD_PRINT_HOSTS) if self.valid_key_ph else "")
-                msg += ("`{}{}`: show all hosts statuses.\n".format(self.settings.KEYWORD_CMD_PREFIX, self.settings.KEYWORD_PRINT_ALL_HOSTS) if self.valid_key_pah else "")
-                msg += ("`{}{}`: show all hosts statuses in style of command line.\n".format(self.settings.KEYWORD_CMD_PREFIX, self.settings.KEYWORD_PRINT_ALL_HOSTS_CMD) if self.valid_key_pahc else "")
-                msg += ("`{}{}`: show all hosts statuses in detail.\n".format(self.settings.KEYWORD_CMD_PREFIX, self.settings.KEYWORD_PRINT_ALL_HOSTS_DETAIL) if self.valid_key_pahd else "")
-                msg += ("`{}<host_name>`: show host statuses in detail.\n".format(self.settings.KEYWORD_CMD_PREFIX))
-                msg += ("`{}{}`: show this message.".format(self.settings.KEYWORD_CMD_PREFIX, self.settings.KEYWORD_PRINT_HELP) if self.valid_key_help else "")
+                msg += "`{}{}`: show all hosts which is watched by the server.\n".format(self.settings.KEYWORD_CMD_PREFIX, self.settings.KEYWORD_PRINT_HOSTS) if self.valid_key_ph else ""
+                msg += "`{}{}`: show all hosts statuses.\n".format(self.settings.KEYWORD_CMD_PREFIX, self.settings.KEYWORD_PRINT_ALL_HOSTS) if self.valid_key_pah else ""
+                msg += "`{}{}`: show all hosts statuses in style of command line.\n".format(self.settings.KEYWORD_CMD_PREFIX, self.settings.KEYWORD_PRINT_ALL_HOSTS_CMD) if self.valid_key_pahc else ""
+                msg += "`{}{}`: show all hosts statuses in detail.\n".format(self.settings.KEYWORD_CMD_PREFIX, self.settings.KEYWORD_PRINT_ALL_HOSTS_DETAIL) if self.valid_key_pahd else ""
+                msg += "`{}<host_name>`: show host statuses in detail.\n".format(self.settings.KEYWORD_CMD_PREFIX)
+                msg += "`{}{}`: show server information.\n".format(self.settings.KEYWORD_CMD_PREFIX, self.settings.KEYWORD_PRINT_SERVER_INFO) if self.valid_key_help else ""
+                msg += "`{}{}`: show this message.".format(self.settings.KEYWORD_CMD_PREFIX, self.settings.KEYWORD_PRINT_HELP) if self.valid_key_help else ""
 
                 return {"type":"message", "content":msg}
 
@@ -303,10 +324,13 @@ class SlackBot(object):
             """
                 parsed_data will be like
                 {
-                    "request"   : "...",
-                    "user"      : "...",
-                    "channel"   : "...",
-                    "thread_ts" : "..."
+                    "request"         : "...",
+                    "user_id"         : "...",
+                    "channel"         : "...",
+                    "title"           : "...",
+                    "file_name"       : "...",
+                    "initial_comment" : "...",
+                    "thread_ts"       : "..."
                 }
             """
             parsed_data = self.parse_rtm_data(data_dict)
@@ -315,8 +339,6 @@ class SlackBot(object):
                 response = self.create_response(parsed_data)
 
                 if response["type"] == "snippet":
-                    # slack python api error?
-                    # it seems replying through a thread with snipped (file) makes strange behavior
                     self.send_snippet(msg=response["content"],
                                       channel=parsed_data["channel"],
                                       title=parsed_data["title"],
