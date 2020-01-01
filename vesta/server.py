@@ -27,7 +27,7 @@ from geventwebsocket.handler import WebSocketHandler
 
 from .__version__ import __version__
 from . import env
-from .database import DataBase
+from .database import Database
 from .slack_bot_manager import SlackBot
 from .path_util import *
 from .format_str import *
@@ -560,7 +560,7 @@ class HTTPServer(object):
 
         # in case it doesn't exist
         mkdir(self.database_dir)
-        self.database = DataBase(self.settings, path_join(self.database_dir, self.database_name))
+        self.database = Database(self.settings, path_join(self.database_dir, self.database_name))
 
         MainView.init(self.settings, self.database, self.term_width)
         MainView.register(self.app)

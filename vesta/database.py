@@ -11,7 +11,7 @@ from . import env
 
 BASE_TABLE_NAME = "machines"
 
-class DataBase(object):
+class Database(object):
     """
         takes care of sqlite3 database
     """
