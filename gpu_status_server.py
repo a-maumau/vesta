@@ -8,16 +8,16 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Easy running script for GPU monitor server.",
                                      epilog="")
 
-    # overwrite the settings
+    # overwrite the settings ##################################
     parser.add_argument('--local_settings_yaml_path', type=str, default=None,
                         help='yaml file path which overwrite the contents args.')
 
-    # args for server
+    # args for server #########################################
     parser.add_argument('--ip', dest='IP', type=str, default="127.0.0.1",
                         help='this ip address is the server address for the client which send the gpu information.\nit is mainly for a machine which is sending the data to server.')
     parser.add_argument('--port_num', dest='PORT_NUM', type=int, default=8080, help="server's open port.")
     parser.add_argument('--token', dest='TOKEN', type=str, default="0000",
-                        help="url parameter token for posting data.\nwhatever you want, actually it's doing nothing now. it is only for preventing accidental posting.")
+                        help="url parameter token for posting data.\nwhatever you want. it is only for preventing accidental posting. you can disable this by setting to \"\".")
     parser.add_argument('--server_name', dest='SERVER_NAME', type=str, default="gpu_monitor", help='')
     parser.add_argument('--bind_host', dest='BIND_HOST', type=str, default="0.0.0.0",
                         help='bind host IP address.\nthis should be 0.0.0.0.\nif you want to filter IP addresses, use `--valid_network`.')
@@ -38,7 +38,7 @@ if __name__ == '__main__':
     parser.add_argument('--sort_by', dest='SORT_BY', type=str, default="ip", choices=['ip', 'name'],
                         help='sort type of machine arrangement. choice from `ip` or `name`.')
 
-    # args for waching part
+    # args for waching part ###################################
     parser.add_argument('--server_sleep_time', dest='SERVER_SLEEP_TIME', type=int, default=5, help='server sleeping time in sec.')
     parser.add_argument('--down_th', dest='DOWN_TH', type=int, default=60,
                         help='threshold of deciding machines are down in sec.\nif your monitoring machine is sending information in interval that is more than this value, it will always decide it is down. so at least you need to set this value more than that.')
@@ -48,6 +48,7 @@ if __name__ == '__main__':
     parser.add_argument('--save_interval', dest='SAVE_INTERVAL', type=int, default=60,
                         help='at least interval time for saving data in sec.\nthis is for controlling the data which is will save in database. if you want to save all data, set this to 0.')
     
+    # slack app setting #######################################
     parser.add_argument('--slack_webhook', dest='SLACK_WEBHOOK', type=str, default="",
                         help='for slack notification. set a webhook url.\nit will send a up/down notification to this webhook.')
     parser.add_argument('--slack_bot_token', dest='SLACK_BOT_TOKEN', type=str, default="",
@@ -57,32 +58,41 @@ if __name__ == '__main__':
     parser.add_argument('--valid_network', dest='VALID_NETWORK', type=str, default="127.0.0.1",
                         help='to filter valid IP address.\nit will be used in `re.search()`, so you can use regular expressions.')
 
-    # must be a iteratable object
+    # must be a iteratable object #############################
     parser.add_argument('--shedule_function', dest='SCHEDULE_FUNCTION', type=str, nargs='*', default=[],
                         help="if you want send shceduled status report, use this function.\nyou can use python schedule module to schedule the announcement of something like `'schedule.every().day.at('00:00').do(self.send_hosts_statuses, 'SCHEDULED_STATUS_REPORT')'`. this will go through `exec()` be careful.")
 
-    # notification message
+    # notification message ####################################
     parser.add_argument('--register_uplink_msg', dest='REGISTER_UPLINK_MSG', type=str, default="⬆︎⬆︎⬆︎ `Uplink` Detected - New uplink from `{}`. Hello!",
                         help='notification message of new host came.\nif you use {} it will be filled with `host name`')
     parser.add_argument('--re_uplink_msg', dest='RE_UPLINK_MSG', type=str, default="⬆︎⬆︎⬆︎ `  Up  ` Detected - Uplink from `{}`. Welcome back!",
                         help='notification message of host has come up from down status or waiting status.\nif you use {} it will be filled with `host name`.')
-    parser.add_argument('--host_down_msg', dest='HOST_DOWN_MSG', type=str, default="⬇︎⬇︎⬇︎ ` Down ` Detected - Connection from `{}` has been lost more than {} sec. Check network and machine.",
-                        help='notification message of server decided host is down.\nif you use {}, you have to use two {} and it will be filled with `host name` and `at least lost connection interval sec`.')
+    parser.add_argument('--host_down_msg', dest='HOST_DOWN_MSG', type=str, default="⬇︎⬇︎⬇︎ ` Down ` Detected - Connection from `{host_name}` has been lost more than {lost_th} sec. Check network and machine.",
+                        help='notification message of server decided host is down.\nyou  can use {host_name}, {lost_th} for .format() and it will be filled with `host name` and `DOWN_TH`.')
+    parser.add_argument('--server_up_msg', dest='SERVER_UP_MSG', type=str, default="Server has been started.\nCheck `{ip}:{port}` (bind : `{bind_host}`)",
+                        help='notification message when server starts. you can use {ip}, {port}, {bind_host} for .format().')
+    parser.add_argument('--server_info_msg', dest='SERVER_INFO_MSG', type=str, default="runing on `{ip}:{port}` (bind : `{bind_host}`)",
+                        help='message of server for slack intaracting. you can use {ip}, {port}, {bind_host} for .format().')
 
+    # setting of intaractive commands on slack ################
     parser.add_argument('--keyword_cmd_prefix', dest='KEYWORD_CMD_PREFIX', type=str, default="",
                         help="slack bot's command prefix\nset prefix if you want to discriminate commands and usual word.")
     # show all host names
-    parser.add_argument('--keyword_print_hosts', dest='KEYWORD_PRINT_HOSTS', type=str, default="HOSTS", help='if you set to "" i will be disabled')
+    parser.add_argument('--keyword_print_hosts', dest='KEYWORD_PRINT_HOSTS', type=str, default="HOSTS", help='if you set to "", it will be disabled')
     # same result as server::send_hosts_statuses()
-    parser.add_argument('--keyword_print_all_hosts', dest='KEYWORD_PRINT_ALL_HOSTS', type=str, default="ALL", help='if you set to "" i will be disabled')
+    parser.add_argument('--keyword_print_all_hosts', dest='KEYWORD_PRINT_ALL_HOSTS', type=str, default="ALL", help='if you set to "", it will be disabled')
     # same result as command line using ?term=true
-    parser.add_argument('--keyword_print_all_hosts_cmd', dest='KEYWORD_PRINT_ALL_HOSTS_CMD', type=str, default="ALL_cmd", help='if you set to "" i will be disabled')
+    parser.add_argument('--keyword_print_all_hosts_cmd', dest='KEYWORD_PRINT_ALL_HOSTS_CMD', type=str, default="ALL_cmd", help='if you set to "", it will be disabled')
     # same result as command line using ?term=true
-    parser.add_argument('--keyword_print_all_hosts_detail', dest='KEYWORD_PRINT_ALL_HOSTS_DETAIL', type=str, default="ALL_detail", help='if you set to "" i will be disabled')
+    parser.add_argument('--keyword_print_all_hosts_detail', dest='KEYWORD_PRINT_ALL_HOSTS_DETAIL', type=str, default="ALL_detail", help='if you set to "", it will be disabled')
+    # same result as command line using ?term=true
+    parser.add_argument('--keyword_print_server_info', dest='KEYWORD_PRINT_SERVER_INFO', type=str, default="WHERE", help='if you set to "", it will be disabled')
     # for help message
-    parser.add_argument('--keyword_print_help', dest='KEYWORD_PRINT_HELP', type=str, default="HELP", help='if you set to "" i will be disabled')
+    parser.add_argument('--keyword_print_help', dest='KEYWORD_PRINT_HELP', type=str, default="HELP", help='if you set to "", it will be disabled')
 
-    parser.add_argument('-quiet', dest='QUIET', action="store_true", default=False, help='show only critical error message.')
+    # option of message printing ##############################
+    parser.add_argument('-quiet', dest='QUIET', action="store_true", default=False, help='')
+    parser.add_argument('-debug', dest='DEBUG', action="store_true", default=False, help='')
 
     # ssl settings certfile, keyfile=None, password
     """
