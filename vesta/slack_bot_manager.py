@@ -14,14 +14,35 @@ from . import env
 from .format_str import *
 
 # for some issue on WebClient.chat_postMessage()
-import nest_asyncio
-nest_asyncio.apply()
+"""
+    comment outed
+    it seems to raise
+        RuntimeError: Event loop stopped before Future completed
+    I cannot solve it
 
-def print_error(e):
+    # to-fix
+"""
+#import nest_asyncio
+#nest_asyncio.apply()
+
+def print_error(e, additional=""):
+    if len(additional) > 0:
+        print(additional)
+
     traceback.print_exc()
     print(e)
 
+"""
+    currentlly this class has a issue of rasing
+        "RuntimeError: This event loop is already running".
+    I couldn't fix it, but it will work anyway.
+    so I will keep this way when the day this could be solved.
+"""
 class SlackBot(object):
+    # this is max.
+    # if you want to you more than this, we need to handle the pagination
+    slack_api_fetch_limit = 1000
+
     def __init__(self, settings, bot_token, database, term_width=80, server_info={"server_message":""}):
         """
             args:
@@ -38,6 +59,9 @@ class SlackBot(object):
                         KEYWORD_PRINT_ALL_HOSTS_CMD             :str
                         KEYWORD_PRINT_ALL_HOSTS_DETAIL          :str
                         KEYWORD_PRINT_HELP                      :str
+
+                        QUIET                                   :bool
+                        DEBUG                                   :bool
 
                     typically, I recommend using `argparse`.
                     see `gpu_status_server.py` for more detail.
@@ -73,6 +97,118 @@ class SlackBot(object):
         self.valid_key_pahd = len(self.settings.KEYWORD_PRINT_ALL_HOSTS_DETAIL) > 0
         self.valid_key_server_info = len(self.settings.KEYWORD_PRINT_SERVER_INFO) > 0
         self.valid_key_help = len(self.settings.KEYWORD_PRINT_HELP) > 0
+
+        self.__create_user_list()
+        self.__create_dm_channel_list()
+
+    def __create_user_list(self):
+        """
+            this function will 
+
+            users_data will be like
+            {
+                'ok': True,
+                'members': [
+                    {
+                        'id': 'USLACKBOT',
+                        'team_id': 'T...',
+                        'name': 'slackbot',
+                        'deleted': False,
+                        'color': '757575',
+                        'real_name': 'Slackbot',
+                        'tz': None,
+                        'tz_label': 'Pacific Standard Time',
+                        'tz_offset': -28800,
+                        'profile': {
+                            'title': '',
+                            'phone': '',
+                            'skype': '',
+                            'real_name': 'Slackbot',
+                            'real_name_normalized': 'Slackbot',
+                            'display_name': 'Slackbot',
+                            'display_name_normalized': 'Slackbot',
+                            'fields': None,
+                            'status_text': '',
+                            'status_emoji': '',
+                            'status_expiration': 0,
+                            'avatar_hash': 'sv41d8cd98f0',
+                            'always_active': True,
+                            'first_name': 'slackbot',
+                            'last_name': '',
+                            'image_24': 'https://a.slack-edge.com/80588/img/slackbot_24.png',
+                            ...
+                            'image_512': 'https://a.slack-edge.com/80588/img/slackbot_512.png',
+                            'status_text_canonical': '',
+                            'team': 'T...'
+                        },
+                        'is_admin': False,
+                        'is_owner': False,
+                        'is_primary_owner': False,
+                        'is_restricted': False,
+                        'is_ultra_restricted': False,
+                        'is_bot': False,
+                        'is_app_user': False,
+                        'updated': 0
+                    },
+                    {...}
+                ],
+                'cache_ts': 157...,
+                'warning': 'superfluous_charset',
+                'response_metadata': {
+                    'next_cursor': '',
+                    'warnings': ['superfluous_charset']
+                }
+            }
+        """
+
+        users_data = self.client.users_list(limit=self.slack_api_fetch_limit)
+        members_data = users_data["members"]
+
+        self.cache_ts = users_data["cache_ts"]
+
+        # dict for id
+        self.email_to_user_id = {}
+        self.user_name_to_user_id = {}
+
+        for member_data_dict in members_data:
+            if member_data_dict["is_bot"] or member_data_dict["id"] == "USLACKBOT":
+                continue
+
+            self.email_to_user_id[member_data_dict["profile"]["email"]] = member_data_dict["id"]
+            self.user_name_to_user_id[member_data_dict["profile"]["display_name"]] = member_data_dict["id"]
+
+    def __update_user_list(self):
+        self.__create_user_list()
+
+    def __create_dm_channel_list(self):
+        self.user_id_to_dm_channel = {}
+
+        """
+            dm_channel_data will be like
+            {
+                'ok': True,
+                'channels': [
+                    {
+                        'id': 'D...',
+                        'created': 1...,
+                        'is_archived': False,
+                        'is_im': True,
+                        'is_org_shared': False,
+                        'user': 'U...',
+                        'is_user_deleted': False,
+                        'priority': 0
+                    }, 
+                    {...}
+                ],
+                'response_metadata': {'next_cursor': ''}
+            }
+        """
+        dm_channel_data = self.client.conversations_list(limit=self.slack_api_fetch_limit, types="im")
+        for user_data in dm_channel_data['channels']:
+            self.user_id_to_dm_channel[user_data["user"]] = user_data["id"]
+
+    def __update_dm_channel_list(self):
+        self.__create_dm_channel_list()
 
     def create_response(self, req_content_dict):
         """
@@ -195,6 +331,45 @@ class SlackBot(object):
 
         return {"type":None, "content":""}
 
+    def search_user_id(self, user):
+        if user in self.user_name_to_user_id:
+            return self.user_name_to_user_id[user]
+
+        if user in self.email_to_user_id:
+            return self.email_to_user_id[user]
+
+        # it might be old list, so we will update the list
+        self.__update_user_list()
+        self.__create_dm_channel_list()
+
+        if user in self.user_name_to_user_id:
+            return self.user_name_to_user_id[user]
+
+        if user in self.email_to_user_id:
+            return self.email_to_user_id[user]
+
+        return None
+
+    def search_user_dm_channel(self, user_id):
+        if user_id in self.user_id_to_dm_channel:
+            return self.user_id_to_dm_channel[user_id]
+
+        return None
+
+    def send_direct_message(self, msg, user, dm_channel=None):
+        if dm_channel is not None:
+            self.send_message(msg, user_id, thread_ts="")
+
+        else:
+            user_id = self.search_user_id(user)
+            if user_id is not None:
+                dm_channel = self.search_user_dm_channel(user_id)
+                # we have stored the im channel, but we also can search it every time.
+                # dm_channel = self.client.conversations_open(users=user_id)['channel']['id']
+                
+                if dm_channel is not None:
+                    self.send_message("<@{}>\n{}".format(user_id, msg), dm_channel, thread_ts="")
+
     def send_snippet(self, msg, channel, title="", file_name="msg.txt", initial_comment="", thread_ts=""):
         """
             send string message as snippet
@@ -223,7 +398,8 @@ class SlackBot(object):
             msg.close()
 
         except Exception as e:
-            print_error(e)
+            if self.settings.DEBUG:
+                print_error(e, "in send snippet")
 
     def send_message(self, msg, channel, thread_ts=""):
         try:
@@ -232,7 +408,8 @@ class SlackBot(object):
                                          thread_ts=thread_ts)
 
         except Exception as e:
-            print_error(e)
+            if self.settings.DEBUG:
+                print_error(e, "in send_message")
 
     def parse_rtm_data(self, data_dict):
         """
@@ -273,7 +450,7 @@ class SlackBot(object):
         return req
 
     # main routine
-    def start(self, loop):
+    def start_watching(self, loop):
         """
             args:
                 loop: asyncio.get_event_loop()
@@ -344,15 +521,17 @@ class SlackBot(object):
                                       title=parsed_data["title"],
                                       file_name=parsed_data["file_name"],
                                       initial_comment=parsed_data["initial_comment"],
-                                      thread_ts=parsed_data["thread_ts"])
+                                      # DM's channel id will start from "D"
+                                      thread_ts="" if re.match("D", parsed_data["channel"]) else parsed_data["thread_ts"])
 
                 if response["type"] == "message":
                     self.send_message(msg="<@{}>\n{}".format(parsed_data["user_id"], response["content"]),
                                       channel=parsed_data["channel"],
-                                      thread_ts=parsed_data["thread_ts"])
+                                      # DM's channel id will start from "D"
+                                      thread_ts="" if re.match("D", parsed_data["channel"]) else parsed_data["thread_ts"])
             else:
                 pass
 
-        asyncio.set_event_loop(loop)
-        self.rtm_client = RTMClient(token=self.bot_token, connect_method='rtm.start', loop=loop)
+        self.rtm_client = RTMClient(token=self.bot_token, connect_method='rtm.start', run_async=False, loop=loop)
         self.rtm_client.start()
+        

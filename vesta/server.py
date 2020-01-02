@@ -138,6 +138,7 @@ class StatesView(FlaskView):
         `access http://<server_address>/` which in MainView.
     """
 
+    settings = None
     database = None
     term_width = 80
 
@@ -187,6 +188,7 @@ class RegisterView(FlaskView):
         it is used by clients to register themselves.
     """
 
+    settings = None
     database = None
 
     @classmethod
@@ -206,9 +208,9 @@ class RegisterView(FlaskView):
     @route('/', methods=["GET"])
     def rergister(self):
         name = self.validate_host_name(request.args.get('host_name'))
-        register_hash_code = request.args.get('token')
+        auth_token = request.args.get('token')
 
-        if register_hash_code == self.settings.TOKEN or self.token_auth_disable:
+        if auth_token == self.settings.TOKEN or self.token_auth_disable:
             hash_code = random.getrandbits(128)
             hash_key = "{:x}".format(hash_code)
 
@@ -220,7 +222,7 @@ class RegisterView(FlaskView):
 
             if not self.settings.QUIET:
                 ts = create_timestamp(self.settings.TIMESTAMP_FORMAT)
-                print("[ {} ] {}{}[ register ] : {}[{}] hash:{}{}{}".format(ts,
+                print("[{}] {}{}[ register ] : {}[{}] hash:{}{}{}".format(ts,
                                                                        terminal_bg.BLUE, terminal_fg.WHITE, 
                                                                        name, request.remote_addr, hash_key,
                                                                        terminal_fg.END, terminal_bg.END))
@@ -240,6 +242,7 @@ class UpdateView(FlaskView):
         it is used by clients to update their data
     """
 
+    settings = None
     database = None
 
     @classmethod
@@ -258,9 +261,9 @@ class UpdateView(FlaskView):
 
     @route('/host/<string:hash_key>', methods=["POST"])
     def add_data(self, hash_key):
-        register_hash_code = request.args.get('token')
+        auth_token = request.args.get('token')
 
-        if register_hash_code == self.settings.TOKEN or self.token_auth_disable:
+        if auth_token == self.settings.TOKEN or self.token_auth_disable:
             if self.database.has_hash(hash_key):
                 _thread = threading.Thread(target=self.__add_to_database,
                                            args=(request.get_json(), hash_key, self.database.host_list[hash_key]["name"]))
@@ -280,14 +283,14 @@ class UpdateView(FlaskView):
 
             if not self.settings.QUIET:
                 ts = create_timestamp(self.settings.TIMESTAMP_FORMAT)
-                print("[ {} ] {}{}[    UP    ] : {}{}{}".format(ts,
+                print("[{}] {}{}[    UP    ] : {}{}{}".format(ts,
                                                             terminal_bg.GREEN, terminal_fg.BLACK,
                                                             host_name,
                                                             terminal_bg.END, terminal_fg.END))
         else:
             if self.settings.DEBUG:
                 ts = create_timestamp(self.settings.TIMESTAMP_FORMAT)
-                print("[ {} ] [  UPDATE  ] : {}".format(ts, host_name))
+                print("[{}] [  UPDATE  ] : {}".format(ts, host_name))
 
         self.database.add_data(hash_key, data)
         self.__add_queue(self.database.host_list[hash_key]["name"])
@@ -368,6 +371,57 @@ class UpdateView(FlaskView):
         else:
             abort(405)
 
+class NotificationView(FlaskView):
+    """
+        this class take care of `http://<server_address>/notification/`
+        it will provide stored gpu status information.
+
+        if you want to access to latest data,
+        `access http://<server_address>/` which in MainView.
+    """
+
+    settings = None
+
+    @classmethod
+    def init(cls, settings, slack_bot):
+        cls.settings = settings
+        cls.slack_bot = slack_bot
+
+        cls.token_auth_disable = len(cls.settings.TOKEN) < 1
+
+    # filtering
+    def before_request(self, name, **kwargs):
+        match = re.search(self.settings.VALID_NETWORK, request.remote_addr)
+        if match is None:
+            abort(403)
+
+    @route('/send_notification/slack/', methods=["POST"])
+    def send_slack_dm_message(self):
+        """
+            you can post like
+
+            curl -X POST -H "Content-Type: application/json" \
+                 -d '{"text":"Hello!", "to":"user1"}' \
+                 localhost:8080/notification/send_notification/slack/?token=0000
+        """
+
+        auth_token = request.args.get('token')
+        if auth_token == self.settings.TOKEN or self.token_auth_disable:
+
+            request_json = request.get_json()
+            if request_json is None:
+                return json.dumps({"status":"ERROR", "status_code":400, "info":"you need a valid json data"})
+
+            if "text" not in request_json or "to" not in request_json:
+                return json.dumps({"status":"ERROR", "status_code":400, "info":"you need a valid json data"})
+
+            #self.slack_bot.send_message("<@{}>\n{}".format("U8XLD9G5S", "test"), "DFWNQSD0V", thread_ts="")
+            self.slack_bot.send_direct_message(request_json["text"], request_json["to"])
+
+            return ("", 204)
+        else:
+            return create_response_403()
+
 class MainView(FlaskView):
     """
         this class take care of `http://<server_address>/`
@@ -376,6 +430,7 @@ class MainView(FlaskView):
 
     route_base = "/"
 
+    settings = None
     database = None
     term_width = 80
 
@@ -562,6 +617,17 @@ class HTTPServer(object):
         mkdir(self.database_dir)
         self.database = Database(self.settings, path_join(self.database_dir, self.database_name))
 
+        if self.settings.SLACK_BOT_TOKEN != "":
+            self.slack_bot = SlackBot(self.settings, self.settings.SLACK_BOT_TOKEN, self.database,
+                                      server_info={"server_message":self.settings.SERVER_INFO_MSG.format(ip=self.ip_addr,
+                                                                                                         port=self.bind_port,
+                                                                                                         bind_host=self.bind_host),
+                                                   "IP address": self.ip_addr,
+                                                   "open port": self.bind_port,
+                                                   "bind host": self.bind_host})
+        else:
+            self.slack_bot = None
+
         MainView.init(self.settings, self.database, self.term_width)
         MainView.register(self.app)
 
@@ -574,6 +640,9 @@ class HTTPServer(object):
         UpdateView.init(self.settings, self.database)
         UpdateView.register(self.app)
 
+        NotificationView.init(self.settings, self.slack_bot)
+        NotificationView.register(self.app)
+
         """
         if settings.SSL_KEY is not None and settings.SSL_CERT is not None:
             ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
@@ -583,19 +652,6 @@ class HTTPServer(object):
                                                  handler_class=WebSocketHandler, ssl_context=ssl_context)
         """
         self.wsgi_server = pywsgi.WSGIServer((self.bind_host, self.bind_port), self.app, handler_class=WebSocketHandler)
-
-
-
-        if self.settings.SLACK_BOT_TOKEN != "":
-            self.slack_bot = SlackBot(self.settings, self.settings.SLACK_BOT_TOKEN, self.database,
-                                      server_info={"server_message":self.settings.SERVER_INFO_MSG.format(ip=self.ip_addr,
-                                                                                                         port=self.bind_port,
-                                                                                                         bind_host=self.bind_host),
-                                                   "IP address": self.ip_addr,
-                                                   "open port": self.bind_port,
-                                                   "bind host": self.bind_host})
-        else:
-            self.slack_bot = None
 
         if self.settings.QUIET:
             import logging
@@ -666,7 +722,7 @@ class HTTPServer(object):
 
                     if not self.settings.QUIET:
                         ts = create_timestamp(self.settings.TIMESTAMP_FORMAT)
-                        print("[ {} ] {}{}[   DOWN   ] : {}{}{}".format(ts,
+                        print("[{}] {}{}[   DOWN   ] : {}{}{}".format(ts,
                                                                     terminal_bg.RED, terminal_fg.WHITE, 
                                                                     host["name"],
                                                                     terminal_fg.END, terminal_bg.END))
@@ -678,8 +734,8 @@ class HTTPServer(object):
 
         if self.slack_bot is not None:
             # not main threads (new threads) do not have event loop, so we will pass it
-            loop = asyncio.get_event_loop()
-            self.bot_thread = threading.Thread(target=self.slack_bot.start, args=(loop,), daemon=True)
+            self.loop = asyncio.get_event_loop()
+            self.bot_thread = threading.Thread(target=self.slack_bot.start_watching, args=(self.loop,), daemon=True)
             self.bot_thread.start()
 
         self.watch_and_sleep()

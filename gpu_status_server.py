@@ -69,9 +69,9 @@ if __name__ == '__main__':
                         help='notification message of host has come up from down status or waiting status.\nif you use {} it will be filled with `host name`.')
     parser.add_argument('--host_down_msg', dest='HOST_DOWN_MSG', type=str, default="⬇︎⬇︎⬇︎ ` Down ` Detected - Connection from `{host_name}` has been lost more than {lost_th} sec. Check network and machine.",
                         help='notification message of server decided host is down.\nyou  can use {host_name}, {lost_th} for .format() and it will be filled with `host name` and `DOWN_TH`.')
-    parser.add_argument('--server_up_msg', dest='SERVER_UP_MSG', type=str, default="Server has been started.\nCheck `{ip}:{port}` (bind : `{bind_host}`)",
+    parser.add_argument('--server_up_msg', dest='SERVER_UP_MSG', type=str, default="Server has been started.\nCheck `{ip}:{port}/` (bind : `{bind_host}`)",
                         help='notification message when server starts. you can use {ip}, {port}, {bind_host} for .format().')
-    parser.add_argument('--server_info_msg', dest='SERVER_INFO_MSG', type=str, default="runing on `{ip}:{port}` (bind : `{bind_host}`)",
+    parser.add_argument('--server_info_msg', dest='SERVER_INFO_MSG', type=str, default="runing on `{ip}:{port}/` (bind : `{bind_host}`)",
                         help='message of server for slack intaracting. you can use {ip}, {port}, {bind_host} for .format().')
 
     # setting of intaractive commands on slack ################
