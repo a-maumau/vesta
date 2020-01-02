@@ -207,6 +207,8 @@ class SlackBot(object):
         for user_data in dm_channel_data['channels']:
             self.user_id_to_dm_channel[user_data["user"]] = user_data["id"]
 
+        print(self.user_id_to_dm_channel)
+
     def __update_dm_channel_list(self):
         self.__create_dm_channel_list()
 
