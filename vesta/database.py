@@ -425,6 +425,15 @@ class Database(object):
 
         return response
 
+    def fetch_host_info(self, host_name):
+        if host_name not in self.name_to_hash_table:
+            return None
+
+        host_id = self.name_to_hash_table[host_name]
+        host_data = self.host_list[host_id]
+
+        return host_data
+
     def has_hash(self, hash_key):
         if hash_key in self.host_list:
             return True

@@ -14,7 +14,7 @@ if __name__ == '__main__':
 
     # args for server #########################################
     parser.add_argument('--ip', dest='IP', type=str, default="127.0.0.1",
-                        help='this ip address is the server address for the client which send the gpu information.\nit is mainly for a machine which is sending the data to server.')
+                        help='this ip address is the server address for the client which send the gpu information.\nit is mainly for a machine which is sending the data to server.\nalso, if this is changed from 127.0.0.1, it will used in the sever information, otherwise `socket.gethostbyname(socket.gethostname())` will be used.')
     parser.add_argument('--port_num', dest='PORT_NUM', type=int, default=8080, help="server's open port.")
     parser.add_argument('--token', dest='TOKEN', type=str, default="0000",
                         help="url parameter token for posting data.\nwhatever you want. it is only for preventing accidental posting. you can disable this by setting to \"\".")
@@ -69,10 +69,15 @@ if __name__ == '__main__':
                         help='notification message of host has come up from down status or waiting status.\nif you use {} it will be filled with `host name`.')
     parser.add_argument('--host_down_msg', dest='HOST_DOWN_MSG', type=str, default="⬇︎⬇︎⬇︎ ` Down ` Detected - Connection from `{host_name}` has been lost more than {lost_th} sec. Check network and machine.",
                         help='notification message of server decided host is down.\nyou  can use {host_name}, {lost_th} for .format() and it will be filled with `host name` and `DOWN_TH`.')
-    parser.add_argument('--server_up_msg', dest='SERVER_UP_MSG', type=str, default="Server has been started.\nCheck `{ip}:{port}` (bind : `{bind_host}`)",
+    parser.add_argument('--server_up_msg', dest='SERVER_UP_MSG', type=str, default="Server has been started.\nCheck `{ip}:{port}/` (bind : `{bind_host}`)",
                         help='notification message when server starts. you can use {ip}, {port}, {bind_host} for .format().')
-    parser.add_argument('--server_info_msg', dest='SERVER_INFO_MSG', type=str, default="runing on `{ip}:{port}` (bind : `{bind_host}`)",
+    parser.add_argument('--server_info_msg', dest='SERVER_INFO_MSG', type=str, default="runing on `{ip}:{port}/` (bind : `{bind_host}`)",
                         help='message of server for slack intaracting. you can use {ip}, {port}, {bind_host} for .format().')
+
+    # slackbot welcome message
+    parser.add_argument('--slackbot_member_joined_channel_msg', dest='SLACKBOT_MEMBER_JOINED_CHANNEL_MSG', type=str, default="Hi {user}!\nYou can intract with me by\n{help_msg}",
+                        help='message from slackbot when new member joined. you can use {user}, {help_msg} for .format().')
+
 
     # setting of intaractive commands on slack ################
     parser.add_argument('--keyword_cmd_prefix', dest='KEYWORD_CMD_PREFIX', type=str, default="",
@@ -86,7 +91,7 @@ if __name__ == '__main__':
     # same result as command line using ?term=true
     parser.add_argument('--keyword_print_all_hosts_detail', dest='KEYWORD_PRINT_ALL_HOSTS_DETAIL', type=str, default="ALL_detail", help='if you set to "", it will be disabled')
     # same result as command line using ?term=true
-    parser.add_argument('--keyword_print_server_info', dest='KEYWORD_PRINT_SERVER_INFO', type=str, default="WHERE", help='if you set to "", it will be disabled')
+    parser.add_argument('--keyword_print_host_info', dest='KEYWORD_PRINT_HOST_INFO', type=str, default="WHERE", help='if you set to "", it will be disabled')
     # for help message
     parser.add_argument('--keyword_print_help', dest='KEYWORD_PRINT_HELP', type=str, default="HELP", help='if you set to "", it will be disabled')
 
