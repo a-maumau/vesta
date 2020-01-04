@@ -7,6 +7,7 @@ import socket
 import asyncio
 import schedule
 import requests
+import ipaddress
 import threading
 from datetime import datetime
 
@@ -32,6 +33,13 @@ from .slack_bot_manager import SlackBot
 from .path_util import *
 from .format_str import *
 from .terminal_color import *
+
+def is_valid_ip(ip):
+    try:
+        ipaddress.ip_address(ip)
+        return True
+    except:
+        return False
 
 def create_response_403(info_msg="forbidden"):
     return json.dumps({"status":"ERROR", "status_code":403, "info":"{}".format(info_msg)})
@@ -374,10 +382,7 @@ class UpdateView(FlaskView):
 class NotificationView(FlaskView):
     """
         this class take care of `http://<server_address>/notification/`
-        it will provide stored gpu status information.
-
-        if you want to access to latest data,
-        `access http://<server_address>/` which in MainView.
+        it will send a DM to a user
     """
 
     settings = None
@@ -396,13 +401,21 @@ class NotificationView(FlaskView):
             abort(403)
 
     @route('/send_notification/slack/', methods=["POST"])
-    def send_slack_dm_message(self):
+    def send_slack_direct_message(self):
         """
-            you can post like
+            request json must contain `text`, and `to`
+            set slack user display name for `to` 
 
+            example:
+                {
+                    "text": "Hello!"
+                    "to": "<user_display_name>"
+                }
+
+            you can post DM like 
             curl -X POST -H "Content-Type: application/json" \
-                 -d '{"text":"Hello!", "to":"user1"}' \
-                 localhost:8080/notification/send_notification/slack/?token=0000
+                         -d '{"text":"Hello!", "to":"user1"}' \
+                         <server_address>:8080/notification/send_notification/slack/?token=0000
         """
 
         auth_token = request.args.get('token')
@@ -415,7 +428,6 @@ class NotificationView(FlaskView):
             if "text" not in request_json or "to" not in request_json:
                 return json.dumps({"status":"ERROR", "status_code":400, "info":"you need a valid json data"})
 
-            #self.slack_bot.send_message("<@{}>\n{}".format("U8XLD9G5S", "test"), "DFWNQSD0V", thread_ts="")
             self.slack_bot.send_direct_message(request_json["text"], request_json["to"])
 
             return ("", 204)
@@ -603,7 +615,7 @@ class HTTPServer(object):
         self.database_dir = self.settings.DB_DIR
 
         self.name = self.settings.SERVER_NAME
-        self.ip_addr = socket.gethostbyname(socket.gethostname())
+        self.ip_addr = socket.gethostbyname(socket.gethostname()) if self.settings.IP == "127.0.0.1" or is_valid_ip(self.settings.IP) is None else self.settings.IP
         self.bind_port = self.settings.PORT_NUM
         self.bind_host = self.settings.BIND_HOST
         self.term_width = self.settings.TERM_WIDTH
@@ -734,8 +746,8 @@ class HTTPServer(object):
 
         if self.slack_bot is not None:
             # not main threads (new threads) do not have event loop, so we will pass it
-            self.loop = asyncio.get_event_loop()
-            self.bot_thread = threading.Thread(target=self.slack_bot.start_watching, args=(self.loop,), daemon=True)
+            loop = asyncio.new_event_loop()
+            self.bot_thread = threading.Thread(target=self.slack_bot.start_rtm, args=(loop,), daemon=True)
             self.bot_thread.start()
 
         self.watch_and_sleep()

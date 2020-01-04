@@ -1,6 +1,8 @@
 import io
 import re
+import ssl 
 import time
+import certifi
 import asyncio
 import traceback
 import concurrent
@@ -22,8 +24,8 @@ from .format_str import *
 
     # to-fix
 """
-#import nest_asyncio
-#nest_asyncio.apply()
+import nest_asyncio
+nest_asyncio.apply()
 
 def print_error(e, additional=""):
     if len(additional) > 0:
@@ -80,14 +82,17 @@ class SlackBot(object):
         self.term_width = term_width
         self.server_info = server_info
 
-        self.client = WebClient(self.bot_token)
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        self.ssl_context = ssl.create_default_context(cafile=certifi.where())
+        self.client = WebClient(self.bot_token, ssl=self.ssl_context, loop=loop)
 
         self.cmd_prefix = re.compile(self.settings.KEYWORD_CMD_PREFIX)
         self.re_key_ph = re.compile(self.settings.KEYWORD_PRINT_HOSTS)
         self.re_key_pah = re.compile(self.settings.KEYWORD_PRINT_ALL_HOSTS)
         self.re_key_pahc = re.compile(self.settings.KEYWORD_PRINT_ALL_HOSTS_CMD)
         self.re_key_pahd = re.compile(self.settings.KEYWORD_PRINT_ALL_HOSTS_DETAIL)
-        self.re_key_server_info = re.compile(self.settings.KEYWORD_PRINT_SERVER_INFO)
+        self.re_key_print_host_info = re.compile(self.settings.KEYWORD_PRINT_HOST_INFO)
         self.re_key_help = re.compile(self.settings.KEYWORD_PRINT_HELP)
 
         # check keywords are empty or not
@@ -95,7 +100,7 @@ class SlackBot(object):
         self.valid_key_pah = len(self.settings.KEYWORD_PRINT_ALL_HOSTS) > 0
         self.valid_key_pahc = len(self.settings.KEYWORD_PRINT_ALL_HOSTS_CMD) > 0
         self.valid_key_pahd = len(self.settings.KEYWORD_PRINT_ALL_HOSTS_DETAIL) > 0
-        self.valid_key_server_info = len(self.settings.KEYWORD_PRINT_SERVER_INFO) > 0
+        self.valid_key_server_info = len(self.settings.KEYWORD_PRINT_HOST_INFO) > 0
         self.valid_key_help = len(self.settings.KEYWORD_PRINT_HELP) > 0
 
         self.__create_user_list()
@@ -207,18 +212,31 @@ class SlackBot(object):
         for user_data in dm_channel_data['channels']:
             self.user_id_to_dm_channel[user_data["user"]] = user_data["id"]
 
-        print(self.user_id_to_dm_channel)
+        #print(self.user_id_to_dm_channel)
 
     def __update_dm_channel_list(self):
         self.__create_dm_channel_list()
 
-    def create_response(self, req_content_dict):
+    def __create_cmd_message(self):
+        msg = ""
+        msg += "`{}{}`: show all hosts which is watched by the server.\n".format(self.settings.KEYWORD_CMD_PREFIX, self.settings.KEYWORD_PRINT_HOSTS) if self.valid_key_ph else ""
+        msg += "`{}{}`: show all hosts statuses.\n".format(self.settings.KEYWORD_CMD_PREFIX, self.settings.KEYWORD_PRINT_ALL_HOSTS) if self.valid_key_pah else ""
+        msg += "`{}{}`: show all hosts statuses in style of command line.\n".format(self.settings.KEYWORD_CMD_PREFIX, self.settings.KEYWORD_PRINT_ALL_HOSTS_CMD) if self.valid_key_pahc else ""
+        msg += "`{}{}`: show all hosts statuses in detail.\n".format(self.settings.KEYWORD_CMD_PREFIX, self.settings.KEYWORD_PRINT_ALL_HOSTS_DETAIL) if self.valid_key_pahd else ""
+        msg += "`{}<host_name>`: show host statuses in detail.\n".format(self.settings.KEYWORD_CMD_PREFIX)
+        msg += "`{}{}`: show server information.\n".format(self.settings.KEYWORD_CMD_PREFIX, self.settings.KEYWORD_PRINT_HOST_INFO) if self.valid_key_help else ""
+        msg += "`{}{} <host_name>`: show information of <host_name>.\n".format(self.settings.KEYWORD_CMD_PREFIX, self.settings.KEYWORD_PRINT_HOST_INFO) if self.valid_key_help else ""
+        msg += "`{}{}`: show this message.".format(self.settings.KEYWORD_CMD_PREFIX, self.settings.KEYWORD_PRINT_HELP) if self.valid_key_help else ""
+
+        return msg
+
+    def create_cmd_response(self, req_content_dict):
         """
             create respose content correspond to the slack keyword
         
             args:
                 req_content_dict: dict
-                    req_content_dict should be a dict which is made in SlackBot::parse_rtm_data()
+                    req_content_dict should be a dict which is made in SlackBot::parse_rtm_data_for_cmd()
 
             return: dict
                 it will returns a dict {"type":type, "content":msg}.
@@ -303,28 +321,69 @@ class SlackBot(object):
 
                 return {"type":"snippet", "content":msg}
 
-            # print server info
-            elif self.re_key_server_info.search(request_content) is not None and self.valid_key_server_info:
-                msg = ""
-                msg += "server messaeg: {}\n\n".format(self.server_info["server_message"])
-                for info_k, info_v in self.server_info.items():
-                    if info_k == "server_message":
-                        continue
+            # print server and host info
+            elif self.re_key_print_host_info.search(request_content) is not None and self.valid_key_server_info:
+                host_name = self.re_key_print_host_info.sub("", request_content)
+                host_name = re.sub("[ ]+", "", host_name)
 
-                    msg += "{}: `{}`\n".format(info_k, info_v)
+                print(host_name, len(host_name))
 
-                return {"type":"message", "content":msg}
+                if len(host_name) < 1:
+                    # server info
+
+                    """
+                            at now, I think there will be not too long message.
+                            so we will send the message in type:message
+                    """
+                    msg = "```\n"
+                    msg += "server message: {}\n\n".format(self.server_info["server_message"])
+                    for info_k, info_v in self.server_info.items():
+                        if info_k == "server_message":
+                            continue
+
+                        msg += "{}: `{}`\n".format(info_k, info_v)
+                    msg = "```\n"
+
+                    return {"type":"message", "content":msg}
+                else:
+                    # host info
+                    msg = ""
+
+                    """
+                            host_info will be like
+                            {
+                                'cache_data': None,
+                                'ip_address': '127.0.0.1',
+                                'last_touch': 0,
+                                'last_update': 0,
+                                'name': 'mau_local',
+                                'status': 'waiting for re-uplink'
+                                }
+                    """
+                    host_info = self.database.fetch_host_info(host_name)
+                    if host_info is None:
+                        msg += "there is no host name {}".format(host_name)
+
+                        return {"type":"message", "content":msg}
+
+                    else:
+                        """
+                            at now, I think there will be not too long message.
+                            so we will send the message in type:message
+                        """
+                        msg += "```\n" 
+                        msg += "Info:\n"
+                        msg += "    Host name   : {}\n".format(host_info["name"])
+                        msg += "    IP address  : {}\n".format(host_info["ip_address"])
+                        msg += "    Last update : {}\n".format(self.database.format_unix_timestamp(host_info["last_update"]))
+                        msg += "    Status      : {}\n".format(host_info["status"])
+                        msg += "```"
+
+                        return {"type":"message", "content":msg}
 
             # print available command
             elif self.re_key_help.search(request_content) is not None and self.valid_key_help:
-                msg = ""
-                msg += "`{}{}`: show all hosts which is watched by the server.\n".format(self.settings.KEYWORD_CMD_PREFIX, self.settings.KEYWORD_PRINT_HOSTS) if self.valid_key_ph else ""
-                msg += "`{}{}`: show all hosts statuses.\n".format(self.settings.KEYWORD_CMD_PREFIX, self.settings.KEYWORD_PRINT_ALL_HOSTS) if self.valid_key_pah else ""
-                msg += "`{}{}`: show all hosts statuses in style of command line.\n".format(self.settings.KEYWORD_CMD_PREFIX, self.settings.KEYWORD_PRINT_ALL_HOSTS_CMD) if self.valid_key_pahc else ""
-                msg += "`{}{}`: show all hosts statuses in detail.\n".format(self.settings.KEYWORD_CMD_PREFIX, self.settings.KEYWORD_PRINT_ALL_HOSTS_DETAIL) if self.valid_key_pahd else ""
-                msg += "`{}<host_name>`: show host statuses in detail.\n".format(self.settings.KEYWORD_CMD_PREFIX)
-                msg += "`{}{}`: show server information.\n".format(self.settings.KEYWORD_CMD_PREFIX, self.settings.KEYWORD_PRINT_SERVER_INFO) if self.valid_key_help else ""
-                msg += "`{}{}`: show this message.".format(self.settings.KEYWORD_CMD_PREFIX, self.settings.KEYWORD_PRINT_HELP) if self.valid_key_help else ""
+                msg = self.__create_cmd_message()
 
                 return {"type":"message", "content":msg}
 
@@ -405,15 +464,15 @@ class SlackBot(object):
 
     def send_message(self, msg, channel, thread_ts=""):
         try:
-            self.client.chat_postMessage(text=msg,
-                                         channel=channel,
-                                         thread_ts=thread_ts)
+            response = self.client.chat_postMessage(text=msg,
+                                                    channel=channel,
+                                                    thread_ts=thread_ts)
 
         except Exception as e:
             if self.settings.DEBUG:
                 print_error(e, "in send_message")
 
-    def parse_rtm_data(self, data_dict):
+    def parse_rtm_data_for_cmd(self, data_dict):
         """
             only return the response to other users with keyword: self.settings.KEYWORD_CMD_PREFIX + <host_name>
 
@@ -452,13 +511,44 @@ class SlackBot(object):
         return req
 
     # main routine
-    def start_watching(self, loop):
+    def start_rtm(self, loop):
         """
             args:
                 loop: asyncio.get_event_loop()
         """
+        @slack.RTMClient.run_on(event="member_joined_channel")
+        async def onboarding_message(**payload):
+            """
+                it seems this will be received only from joined channel.
 
-        # I need self context...
+                payload will be like
+                {
+                    'rtm_client': <slack.rtm.client.RTMClient>,
+                    'web_client': <slack.web.client.WebClient>,
+                    'data': {
+                        'user': 'U...',
+                        'channel': 'C...',
+                        'channel_type': 'C', 
+                        'team': 'T...',
+                        'event_ts': '15...',
+                        'ts': '15...'
+                    }
+                }
+            """
+
+            if len(self.settings.SLACKBOT_MEMBER_JOINED_CHANNEL_MSG) > 0:
+
+                user_id = payload["data"]["user"]
+                channel = payload["data"]["channel"]
+                ts = payload["data"]["ts"]
+
+                # Post the onboarding message.
+                #await start_onboarding(web_client, user_id, channel)
+                self.send_message(msg=self.settings.SLACKBOT_MEMBER_JOINED_CHANNEL_MSG.format(user="<@{}>".format(user_id), help_msg=self.__create_cmd_message()),
+                                  channel=channel,
+                                  # DM's channel id will start from "D"
+                                  thread_ts="" if re.match("D", channel) else ts)
+
         @RTMClient.run_on(event='message')
         async def rtm_message_receive(**payload):
             """
@@ -512,10 +602,10 @@ class SlackBot(object):
                     "thread_ts"       : "..."
                 }
             """
-            parsed_data = self.parse_rtm_data(data_dict)
+            parsed_data = self.parse_rtm_data_for_cmd(data_dict)
 
             if len(parsed_data) > 0:
-                response = self.create_response(parsed_data)
+                response = self.create_cmd_response(parsed_data)
 
                 if response["type"] == "snippet":
                     self.send_snippet(msg=response["content"],
@@ -528,12 +618,14 @@ class SlackBot(object):
 
                 if response["type"] == "message":
                     self.send_message(msg="<@{}>\n{}".format(parsed_data["user_id"], response["content"]),
-                                      channel=parsed_data["channel"],
-                                      # DM's channel id will start from "D"
-                                      thread_ts="" if re.match("D", parsed_data["channel"]) else parsed_data["thread_ts"])
+                                                  channel=parsed_data["channel"],
+                                                  # DM's channel id will start from "D"
+                                                  thread_ts="" if re.match("D", parsed_data["channel"]) else parsed_data["thread_ts"])
             else:
                 pass
 
-        self.rtm_client = RTMClient(token=self.bot_token, connect_method='rtm.start', run_async=False, loop=loop)
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        self.rtm_client = RTMClient(token=self.bot_token, connect_method='rtm.start', ssl=self.ssl_context, run_async=False, loop=loop)
         self.rtm_client.start()
         
