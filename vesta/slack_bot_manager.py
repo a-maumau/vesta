@@ -326,8 +326,6 @@ class SlackBot(object):
                 host_name = self.re_key_print_host_info.sub("", request_content)
                 host_name = re.sub("[ ]+", "", host_name)
 
-                print(host_name, len(host_name))
-
                 if len(host_name) < 1:
                     # server info
 
@@ -342,7 +340,7 @@ class SlackBot(object):
                             continue
 
                         msg += "{}: `{}`\n".format(info_k, info_v)
-                    msg = "```\n"
+                    msg += "```\n"
 
                     return {"type":"message", "content":msg}
                 else:
