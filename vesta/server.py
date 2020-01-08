@@ -42,10 +42,10 @@ def is_valid_ip(ip):
         return False
 
 def create_response_403(info_msg="forbidden"):
-    return json.dumps({"status":"ERROR", "status_code":403, "info":"{}".format(info_msg)})
+    return json.dumps({"status":"ERROR", "status_code":403, "message":"{}".format(info_msg)})
 
 def create_response_404(info_msg="not found"):
-    return json.dumps({"status":"ERROR", "status_code":404, "info":"{}".format(info_msg)})
+    return json.dumps({"status":"ERROR", "status_code":404, "message":"{}".format(info_msg)})
 
 def send_message_to_slack(slack_webhook, msg, quiet=False, debug=False):
     if slack_webhook != "":
@@ -428,9 +428,8 @@ class NotificationView(FlaskView):
             if "text" not in request_json or "to" not in request_json:
                 return json.dumps({"status":"ERROR", "status_code":400, "info":"you need a valid json data"})
 
-            self.slack_bot.send_direct_message(request_json["text"], request_json["to"])
+            return json.dumps(self.slack_bot.send_direct_message(request_json["text"], request_json["to"]))
 
-            return ("", 204)
         else:
             return create_response_403()
 
