@@ -7,7 +7,6 @@ import asyncio
 import traceback
 import concurrent
 
-#from slackclient import SlackClient
 import slack
 from slack import WebClient, RTMClient
 
@@ -15,15 +14,7 @@ from .__version__ import __version__
 from . import env
 from .format_str import *
 
-# for some issue on WebClient.chat_postMessage()
-"""
-    comment outed
-    it seems to raise
-        RuntimeError: Event loop stopped before Future completed
-    I cannot solve it
-
-    # to-fix
-"""
+# to use nested asyncio
 import nest_asyncio
 nest_asyncio.apply()
 
@@ -34,12 +25,6 @@ def print_error(e, additional=""):
     traceback.print_exc()
     print(e)
 
-"""
-    currentlly this class has a issue of rasing
-        "RuntimeError: This event loop is already running".
-    I couldn't fix it, but it will work anyway.
-    so I will keep this way when the day this could be solved.
-"""
 class SlackBot(object):
     # this is max.
     # if you want to you more than this, we need to handle the pagination
@@ -211,8 +196,6 @@ class SlackBot(object):
         dm_channel_data = self.client.conversations_list(limit=self.slack_api_fetch_limit, types="im")
         for user_data in dm_channel_data['channels']:
             self.user_id_to_dm_channel[user_data["user"]] = user_data["id"]
-
-        #print(self.user_id_to_dm_channel)
 
     def __update_dm_channel_list(self):
         self.__create_dm_channel_list()
@@ -399,7 +382,7 @@ class SlackBot(object):
 
         # it might be old list, so we will update the list
         self.__update_user_list()
-        self.__create_dm_channel_list()
+        self.__update_dm_channel_list()
 
         if user in self.user_name_to_user_id:
             return self.user_name_to_user_id[user]
@@ -416,18 +399,40 @@ class SlackBot(object):
         return None
 
     def send_direct_message(self, msg, user, dm_channel=None):
+        """
+            send a DM from WebClient
+
+            args:
+                msg: str
+                user: str
+                    set user's display name (don't set `@~`, only `~`)
+                dm_channel: str
+                    set slack's DM channel ID.
+                    DM channel ID will start from D
+        """
+
         if dm_channel is not None:
-            self.send_message(msg, user_id, thread_ts="")
+            return self.send_message(msg, user_id, thread_ts="")
 
         else:
             user_id = self.search_user_id(user)
             if user_id is not None:
                 dm_channel = self.search_user_dm_channel(user_id)
-                # we have stored the im channel, but we also can search it every time.
-                # dm_channel = self.client.conversations_open(users=user_id)['channel']['id']
-                
                 if dm_channel is not None:
-                    self.send_message("<@{}>\n{}".format(user_id, msg), dm_channel, thread_ts="")
+                    # sometimes dm channel is not open.
+                    dm_channel = self.client.conversations_open(users=user_id)['channel']['id']
+
+                    if dm_channel is not None:
+                        self.__update_dm_channel_list()
+
+                    else:
+                        return {"status_code":400, "status":"ERROR", "message":"unkown user name"}
+
+                return self.send_message("<@{}>\n{}".format(user_id, msg), dm_channel, thread_ts="")
+
+            else:
+                return {"status_code":400, "status":"ERROR", "message":"unkown user name"}
+
 
     def send_snippet(self, msg, channel, title="", file_name="msg.txt", initial_comment="", thread_ts=""):
         """
@@ -447,7 +452,6 @@ class SlackBot(object):
         try:
             msg = io.StringIO(msg)
             
-            #if len(thread_ts:
             response = self.client.files_upload(file=msg,
                                                 channels=channel,
                                                 title=title,
@@ -456,19 +460,27 @@ class SlackBot(object):
                                                 thread_ts=thread_ts)            
             msg.close()
 
+            return {"status_code":200, "status":"OK", "message":""}
+
         except Exception as e:
             if self.settings.DEBUG:
                 print_error(e, "in send snippet")
+
+            return {"status_code":500, "status":"ERROR", "message":"{}".format(e)}
+
 
     def send_message(self, msg, channel, thread_ts=""):
         try:
             response = self.client.chat_postMessage(text=msg,
                                                     channel=channel,
                                                     thread_ts=thread_ts)
+            return {"status_code":200, "status":"OK", "message":""}
 
         except Exception as e:
             if self.settings.DEBUG:
                 print_error(e, "in send_message")
+
+            return {"status_code":500, "status":"ERROR", "message":"{}".format(e)}
 
     def parse_rtm_data_for_cmd(self, data_dict):
         """
@@ -515,7 +527,7 @@ class SlackBot(object):
                 loop: asyncio.get_event_loop()
         """
         @slack.RTMClient.run_on(event="member_joined_channel")
-        async def onboarding_message(**payload):
+        async def rtm_member_joined_channel_message(**payload):
             """
                 it seems this will be received only from joined channel.
 
@@ -542,7 +554,8 @@ class SlackBot(object):
 
                 # Post the onboarding message.
                 #await start_onboarding(web_client, user_id, channel)
-                self.send_message(msg=self.settings.SLACKBOT_MEMBER_JOINED_CHANNEL_MSG.format(user="<@{}>".format(user_id), help_msg=self.__create_cmd_message()),
+                self.send_message(msg=self.settings.SLACKBOT_MEMBER_JOINED_CHANNEL_MSG.format(user="<@{}>".format(user_id),
+                                  help_msg=self.__create_cmd_message()),
                                   channel=channel,
                                   # DM's channel id will start from "D"
                                   thread_ts="" if re.match("D", channel) else ts)
@@ -586,8 +599,6 @@ class SlackBot(object):
                 }
             """
 
-            data_dict = payload['data']
-
             """
                 parsed_data will be like
                 {
@@ -600,7 +611,7 @@ class SlackBot(object):
                     "thread_ts"       : "..."
                 }
             """
-            parsed_data = self.parse_rtm_data_for_cmd(data_dict)
+            parsed_data = self.parse_rtm_data_for_cmd(payload['data'])
 
             if len(parsed_data) > 0:
                 response = self.create_cmd_response(parsed_data)
@@ -616,9 +627,9 @@ class SlackBot(object):
 
                 if response["type"] == "message":
                     self.send_message(msg="<@{}>\n{}".format(parsed_data["user_id"], response["content"]),
-                                                  channel=parsed_data["channel"],
-                                                  # DM's channel id will start from "D"
-                                                  thread_ts="" if re.match("D", parsed_data["channel"]) else parsed_data["thread_ts"])
+                                      channel=parsed_data["channel"],
+                                      # DM's channel id will start from "D"
+                                      thread_ts="" if re.match("D", parsed_data["channel"]) else parsed_data["thread_ts"])
             else:
                 pass
 
