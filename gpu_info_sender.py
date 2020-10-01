@@ -18,6 +18,7 @@ if __name__ == '__main__':
     parser.add_argument('--yaml_dir', dest='YAML_DIR', type=str, default="data", help='the dir of yaml which token is saved.')
     parser.add_argument('--yaml_name', dest='YAML_NAME', type=str, default="token", help='path of yaml file.')
     parser.add_argument('--nvidia-smi', dest='NVIDIA_SMI', type=str, default="nvidia-smi", help='if you want to specify nvidia-smi command.')
+    parser.add_argument('--nvidia-smi_parse_version', dest='NVIDIA_SMI_PARSE_VER', type=int, default=2, help="since nvidia-smi's process information has changed, you need to set to a suitable verson.\n    1: (GPU, PID, Type, Process name, Usage) format\n    2: (GPU, GI, CI, PID, Type, Process name, GPU Memory) format\nto see more detail, see send_gpu_info.py's get_gpu_info()\n default is 2.")
     parser.add_argument('--use_https', dest='USE_HTTPS', action="store_true", default=False, help='')
 
     settings = parser.parse_args()
@@ -25,7 +26,7 @@ if __name__ == '__main__':
     if settings.local_settings_yaml_path is not None:
         try:
             with open(settings.local_settings_yaml_path, "r") as yaml_file:
-                yaml_data = yaml.load(yaml_file, yaml.safe_load)
+                yaml_data = yaml.load(yaml_file, yaml.FullLoader)
         except Exception as e:
             print(e)
             yaml_data = []
