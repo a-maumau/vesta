@@ -12,6 +12,9 @@ TOKEN: '0000'
 # how many information to read in each page
 PAGE_PER_HOST_NUM: 8
 
+# nvidia-smi parsing version
+NVIDIA_SMI_PARSE_VER: 2
+
 MAIN_PAGE_TITLE: "AWSOME GPUs"
 MAIN_PAGE_DESCRIPTION: "awsome description"
 TABLE_PAGE_TITLE: "AWSOME Table"

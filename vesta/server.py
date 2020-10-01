@@ -333,49 +333,59 @@ class UpdateView(FlaskView):
             client_ip = request.remote_addr
 
             self.client_update[client_ip] = {"page": 1, "queue":set()}
+            keep_update = True
 
-            while True:
-                # wait 1sec for client,
-                # and check if new page number is requested or not
-                page_num = None
-                with Timeout(self.settings.WS_RECEIVE_TIMEOUT, False):
-                    page_num = ws.receive()
+            try:
+                while keep_update:
+                    # wait 1sec for client,
+                    # and check if new page number is requested or not
+                    page_num = None
+                    with Timeout(self.settings.WS_RECEIVE_TIMEOUT, False):
+                        page_num = ws.receive()
 
-                if page_num is None:
-                    pass
-                # if new page number was requested
-                else:
-                    page_num = int(page_num)
-                    if page_num < 1:
-                        page_num = 1
+                    if page_num is None:
+                        pass
+                    # if new page number was requested
+                    else:
+                        page_num = int(page_num)
+                        if page_num < 1:
+                            page_num = 1
 
-                    if page_num != self.client_update[client_ip]["page"]:
-                        self.client_update[client_ip]["page"] = page_num
+                        if page_num != self.client_update[client_ip]["page"]:
+                            self.client_update[client_ip]["page"] = page_num
 
-                        page_host_list = self.database.get_page_host_names(self.client_update[client_ip]["page"])
-                        update_data = {"update":self.fetch_update(page_host_list),
-                                       "page_name_list":page_host_list,
+                            page_host_list = self.database.get_page_host_names(self.client_update[client_ip]["page"])
+                            update_data = {"update":self.fetch_update(page_host_list),
+                                           "page_name_list":page_host_list,
+                                           "total_page_num":self.database.total_page}
+
+                            self.client_update[client_ip]["queue"] = set()
+                            try:
+                                ws.send(json.dumps(update_data))
+                            except:
+                                del self.client_update[client_ip]
+                                keep_update = False
+
+                    if ws.closed:
+                        if client_ip in self.client_update:
+                            try:
+                                del self.client_update[client_ip]
+                            except:
+                                pass
+                        keep_update = False
+                    else:
+                        update_data = {"update":self.fetch_cache_update(self.client_update[client_ip]["queue"]),
+                                       "page_name_list":self.database.get_page_host_names(self.client_update[client_ip]["page"]),
                                        "total_page_num":self.database.total_page}
 
-                        self.client_update[client_ip]["queue"] = set()
-                        ws.send(json.dumps(update_data))
+                        if update_data["update"] != {}:
+                            self.client_update[client_ip]["queue"] = set()
+                            ws.send(json.dumps(update_data))
 
-                if ws.closed:
-                    if client_ip in self.client_update:
-                        del self.client_update[client_ip]
-
-                    break
-                else:
-                    update_data = {"update":self.fetch_cache_update(self.client_update[client_ip]["queue"]),
-                                   "page_name_list":self.database.get_page_host_names(self.client_update[client_ip]["page"]),
-                                   "total_page_num":self.database.total_page}
-
-                    if update_data["update"] != {}:
-                        self.client_update[client_ip]["queue"] = set()
-                        ws.send(json.dumps(update_data))
-
-            # return empty content
-            return ('', 204)
+                # return empty content
+                return ('', 204)
+            except Exception as e:
+                print(e)
         else:
             abort(405)
 

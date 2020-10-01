@@ -33,9 +33,34 @@ TIMESTAMP_FORMAT: "DMY"
 # it will be fed in python `re.search()`, so you can use regular expressions
 VALID_NETWORK: "192.168.11.(129|1[3-9][0-9]|2[0-5][0-9])"
 # this allows 192.168.11.129~255
-
+...
 ```  
 Example is in `example/local_settings.yaml`  
+
+`nvidia-smi`'s information printing format has been changed, so you need to specify a paring version for the client (which is sending a GPU information) script.  
+Please specify the format version (1 or 2) using `--nvidia-smi_parse_version` or write `NVIDIA_SMI_PARSE_VER` in local .yaml file.  
+
+version: 1 is for format of following  
+```
++-----------------------------------------------------------------------------+
+| Processes:                                                       GPU Memory |
+|  GPU       PID  Type  Process name                               Usage      |
+|=============================================================================|
+|    0     16163    C   python                                         240MiB |
+|    1     16163    C   python                                        8522MiB |
++-----------------------------------------------------------------------------+
+```
+version: 2 is for format of following (this is default now)  
+```
++-----------------------------------------------------------------------------+
+| Processes:                                                                  |
+|  GPU   GI   CI        PID   Type   Process name                  GPU Memory |
+|        ID   ID                                                   Usage      |
+|=============================================================================|
+|    0   N/A  N/A     24898      C   python                          17939MiB |
+|    1   N/A  N/A     24899      C   python                          17063MiB |
++-----------------------------------------------------------------------------+
+```
 
 # Usage
 You can use simple wrapper,  
@@ -57,7 +82,7 @@ You will get like
 ```
 $ curl "http://0.0.0.0:8080/?term=true"
 +------------------------------------------------------------------------------+
-| vesta ver. 1.0.1                                                   gpu info. |
+| vesta ver. 1.2.4                                                   gpu info. |
 +------------------+------------------------+-----------------+--------+-------+
 | host             | gpu                    | memory usage    | volat. | temp. |
 +------------------+------------------------+-----------------+--------+-------+
@@ -78,7 +103,7 @@ If you want to see detail information you can use `detail` option like `http://<
 You will get like  
 ```
 $ curl "http://0.0.0.0:8080/?term=true&detail=true"
-vesta ver. 1.0.1
+vesta ver. 1.2.4
 
 #### mau_local :: 127.0.0.1 ####################################################
   last update: 24/03/2019 20:27:10
