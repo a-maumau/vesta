@@ -253,6 +253,11 @@ class UpdateView(FlaskView):
     settings = None
     database = None
 
+    # this is for locking the __add_to_database()
+    # in some cases, client will post a data in very high frequency.
+    # and it will lead to posting a duplicated notification on slack. 
+    ec_lock = threading.Lock()
+
     @classmethod
     def init(cls, settings, database):
         cls.settings = settings
@@ -285,6 +290,9 @@ class UpdateView(FlaskView):
             return create_response_403()
 
     def __add_to_database(self, data, hash_key, host_name):
+        self.ec_lock.acquire()
+        # //// beginning line of exlusive controlling section ////////////
+        # ////////////////////////////////////////////////////////////////
         if self.database.host_list[hash_key]["status"] in env.STATUS_BAD:
             msg = self.settings.RE_UPLINK_MSG.format(host_name)
             send_message_to_slack(self.settings.SLACK_WEBHOOK, msg, self.settings.QUIET, self.settings.DEBUG)
@@ -301,6 +309,10 @@ class UpdateView(FlaskView):
                 print("[{}] [  UPDATE  ] : {}".format(ts, host_name))
 
         self.database.add_data(hash_key, data)
+        # ////////////////////////////////////////////////////////////////
+        # //// ending line of exlusive controlling section //////////////
+        self.ec_lock.release()
+
         self.__add_queue(self.database.host_list[hash_key]["name"])
 
     def __add_queue(self, updated_host):
