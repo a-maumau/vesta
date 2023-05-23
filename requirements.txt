@@ -6,4 +6,4 @@ gevent==1.2.1
 gevent-websocket==0.10.1
 slackclient==2.9.1
 nest-asyncio==1.4.1
-requests==2.26.0
+requests==2.31.0
